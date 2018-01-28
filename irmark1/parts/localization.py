@@ -79,6 +79,7 @@ class Localization(object):
         return
 
     def run_threaded(self, img_arr=None, depth_arr=None):
+        start_time = time.time()
         if type(img_arr) == np.ndarray:
             if not img_arr.size:
                 return 0,0,self.mode,self.recording
@@ -89,8 +90,8 @@ class Localization(object):
         img_arr = img_arr.copy()
         valid_ids = False
         gray = cv2.cvtColor(img_arr, cv2.COLOR_BGR2GRAY)
-        self.prev_frame, self.prev_depth = self.cur_frame, self.cur_depth
-        self.cur_frame, self.cur_depth = gray, depth_arr
+        self.prev_gray, self.prev_depth = self.cur_gray, self.cur_depth
+        self.cur_gray, self.cur_depth = gray, depth_arr
         parameters = cv2.aruco.DetectorParameters_create()
         parameters.adaptiveThreshConstant = 10
         corners, ids, rej = cv2.aruco.detectMarkers(gray, self.aruco_dict, parameters=parameters)
@@ -126,6 +127,7 @@ class Localization(object):
             self.prev_x = avg_x
             self.prev_y = avg_y
             self.prev_theta = avg_theta
+            print("runtime:", time.time()-start_time)
             return avg_x, avg_y, avg_theta, True #Spherical Interp
         else:
             #TODO: Keyframe Matching for previous image
