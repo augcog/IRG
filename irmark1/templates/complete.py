@@ -140,7 +140,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
     elif qrline and type(cam) == RS_D435i:
         mtx = cam.matrix
         dist_coeffs = cam.distortion_coeffs
-        ctr = QRLineFollowerController(0.05, 0.25, mtx, dist_coeffs)
+        ctr = QRLineFollowerController(1, 0.25, mtx, dist_coeffs)
 
     else:        
         #This web controller will create a web server that is capable

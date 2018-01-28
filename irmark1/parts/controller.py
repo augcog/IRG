@@ -946,7 +946,7 @@ class QRLineFollowerController(object):
         self.qrmap = {}
         self.typemap = {}
         self.mode = 'user'
-        self.recording = True
+        self.recording = False
         #ADD QR CODES AND TYPES TO MAP
         self.add_qr(9,1,-1)
         self.add_qr(1,7, 1)
@@ -996,12 +996,13 @@ class QRLineFollowerController(object):
 
     def run_threaded(self, img_arr=None, depth_arr=None):
 
+        
         if type(img_arr) == np.ndarray:
             if not img_arr.size:
                 return 0,0,self.mode,self.recording
         else:
             return 0,0,self.mode,self.recording
-
+        img_arr = img_arr.copy()
         valid_ids = False
         gray = cv2.cvtColor(img_arr, cv2.COLOR_BGR2GRAY)
         parameters = cv2.aruco.DetectorParameters_create()
@@ -1031,7 +1032,7 @@ class QRLineFollowerController(object):
 
         for j in range(len(img_arr)):
             for i in range(len(img_arr[0])):
-                if i < len(img_arr)//10 or i > 9*len(img_arr)//10 or j < len(img_arr)//2:
+                if i < len(img_arr[0])/10 or j < len(img_arr)/3 or i > len(img_arr[0])*9/10:
                     img_arr[j][i] = [0,0,0]
         
         # HSV Thresholding on off-white/white
@@ -1055,7 +1056,8 @@ class QRLineFollowerController(object):
         cX = int(M["m10"] / M["m00"])
         cY = int(M["m01"] / M["m00"])
         x_center = len(gray[0])//2
-        difference = (cX-x_center)//len(img_arr[0])
+        difference = (cX-x_center)/len(img_arr[0])
+        print(difference)
         #RETURN VALUES (apply gain)
         
         return self.gain*difference, self.base_throttle, self.mode, self.recording
