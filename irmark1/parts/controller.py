@@ -956,11 +956,11 @@ class QRLineFollowerController(object):
         self.add_qr(2,8,-1)
         self.add_qr(8,5,1)
         self.add_qr(5,0,3)
-        self.add_qr(0,3,1)
+        self.add_qr(0,3,-1)
         self.add_qr(3,9,3)
         #ID Init
-        self.currentId = 9
-        self.nextId = self.qrmap[9]
+        self.currentId = 9 #reset to 9
+        self.nextId = self.qrmap[9] #reset to 9
 
         #Calibration for Camera Matrix/Distortion Coefficients
         self.camera_matrix = camera_matrix
@@ -985,7 +985,6 @@ class QRLineFollowerController(object):
         # P = np.delete(P,len(P)-1, 0)
         # eul = -cv2.decomposeProjectionMatrix(P)[6]
         # yaw = 180*eul[1,0]/(3.6*math.pi) #rotational angle
-
         print(yaw)
         return yaw
     
@@ -998,10 +997,9 @@ class QRLineFollowerController(object):
 
     def logic(self, id, angle, distance):
         if self.typemap[id] > 0 and self.typemap[id] > distance:
-            return -1
+            return -1 #left turn
         else:
             return 0 
-        
 
     def run_threaded(self, img_arr=None, depth_arr=None):
 
@@ -1026,55 +1024,57 @@ class QRLineFollowerController(object):
             nextId = None
             nextIdInd = None
             for i, val in enumerate(ids):
+                print("QR seen", val[0])
                 if val == self.currentId:
-                    curId = val
+                    print("Current ID seen:", val[0])
+                    curId = val[0]
                     curIdInd = i
                 if val == self.nextId:
-                    nextId = val
+                    print("Next ID seen:", val[0])
+                    nextId = val[0]
                     nextIdInd = i
 
             if curId != None or nextId != None:
-                turn = 0
                 if curId == None:
-                    rvec = rvecs[nextIdInd]
-                    tvec = tvecs[nextIdInd]
-                    difference = self.angle(rvec, tvec)/45 #Normnalizing over 45 degrees
-                    dist = self.distance(rvec,tvec)
-                    
-                    turn = self.logic(nextId, difference, dist)
-                    if turn == 0:
-                        self.currentId = nextId
-                        self.nextId = self.qrmap(nextId)
-                else:
-                    rvec = rvecs[curIdInd]
-                    tvec = tvecs[curIdInd]
-                    difference = self.angle(rvec, tvec)/45
-                    dist = self.distance(rvec,tvec)
+                    self.currentId = nextId
+                    self.nextId = self.qrmap[nextId]
+                    curId = nextId
+                    curIdInd = nextIdInd
 
-                    turn = self.logic(curId, difference, dist)
+                rvec = rvecs[curIdInd]
+                tvec = tvecs[curIdInd]
+                difference = self.angle(rvec, tvec)/45
+                dist = self.distance(rvec,tvec)
 
-                    if turn == 0 and nextID != None:
-                            self.currentId = nextId
-                            self.nextId = self.qrmap(nextId)
-                # check turn: if -1 then turn else go to line followingc
-                    return turn, self.base_throttle, self.mode, self.recording
-            
-        
+                turn = self.logic(curId, difference, dist)
+
+                # if turn == 0 and nextId != None:
+                #     turn = self.logic(nextId, difference, dist)
+                
+                # if nextId != None and self.logic(nextId, difference, dist) != 0 and self.typemap[nextId] > dist:
+                #     self.currentId = nextId
+                #     self.nextId = self.qrmap[nextId]
+                #     turn = self.logic(nextId, difference, dist)
+
+                if turn != 0:
+                    return turn, 0.30, self.mode, self.recording
 
         #BLOCK OUT SURROUNDINGS/TOP HALF
 
         for j in range(len(img_arr)):
             for i in range(len(img_arr[0])):
-                if i < len(img_arr[0])/10 or j < len(img_arr)/3 or i > len(img_arr[0])*9/10:
+                if i < len(img_arr[0])/10 or j < 4*len(img_arr)/5 or i > len(img_arr[0])*9/10:
                     img_arr[j][i] = [0,0,0]
         
         # HSV Thresholding on off-white/white
 
-        hsv = cv2.cvtColor(img_arr, cv2.COLOR_BGR2HSV)
-        white_bottom = np.array([0,0,225], dtype=np.uint8)
-        white_top = np.array([0,30,255], dtype=np.uint8)
+        hsl = cv2.cvtColor(img_arr, cv2.COLOR_BGR2HLS)
+        Lchannel = hsl[:,:,1]
 
-        mask = cv2.inRange(hsv, white_bottom, white_top)
+        #white_bottom = np.array([0,0,225], dtype=np.uint8)
+        #white_top = np.array([0,30,255], dtype=np.uint8)
+
+        mask = cv2.inRange(Lchannel, 240, 255)
         res = cv2.bitwise_and(img_arr, img_arr, mask=mask)
 
         #Raking the grayscale of the HSV (for our cases the v should be enough)
@@ -1090,9 +1090,9 @@ class QRLineFollowerController(object):
         cY = int(M["m01"] / M["m00"])
         x_center = len(gray[0])//2
         difference = (cX-x_center)/len(img_arr[0])
-        print(difference)
         #RETURN VALUES (apply gain)
-    
+
+
         return self.gain*difference, self.base_throttle, self.mode, self.recording
         
         #print(self.base_throttle)
