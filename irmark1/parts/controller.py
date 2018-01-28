@@ -976,16 +976,18 @@ class QRLineFollowerController(object):
         return 0, 0, self.mode, self.recording
 
     def angle(self, rvec, tvec):
-        #rmat = cv2.Rodrigues(rvec)[0]
-        #P = np.hstack((rmat,tvec.T))
-        #eul = -cv2.decomposeProjectionMatrix(P)[6]
-        yaw = 1.8*180*math.atan2(tvec[0][0], tvec[0][1])
-        #yaw = 180*eul[1,0]/math.pi rotational angle
-        # print("P",P)
-        # print("eul", eul)
-        #print("yaw", yaw)
-        # print("eul[1,0]", eul[1,0])
-        return yaw #add minus for the rotational angle
+        yaw = 0.1*180*math.atan2(tvec[0][0], tvec[0][1])
+
+        # rmat = cv2.Rodrigues(rvec)[0]
+        # P = np.hstack((rmat,tvec.T))
+        # affine_P = np.insert(P,len(P),np.array([0]*len(P)+[1]),0)
+        # P = np.linalg.inv(affine_P)
+        # P = np.delete(P,len(P)-1, 0)
+        # eul = -cv2.decomposeProjectionMatrix(P)[6]
+        # yaw = 180*eul[1,0]/(3.6*math.pi) #rotational angle
+
+        print(yaw)
+        return yaw
     
     def distance(self,rvec,tvec):
         tvec = tvec[0]
@@ -993,6 +995,13 @@ class QRLineFollowerController(object):
 
     def update(self):
         return
+
+    def logic(self, id, angle, distance):
+        if self.typemap[id] > 0 and self.typemap[id] > distance:
+            return -1
+        else:
+            return 0 
+        
 
     def run_threaded(self, img_arr=None, depth_arr=None):
 
@@ -1012,21 +1021,45 @@ class QRLineFollowerController(object):
         if np.all(ids!= None):
             valid_ids = True
             rvecs, tvecs ,_ = aruco.estimatePoseSingleMarkers(corners, 0.2032, self.camera_matrix, self.distortion_coeffs)
-            '''nextId = None
             curId = None
+            curIdInd = None
+            nextId = None
+            nextIdInd = None
             for i, val in enumerate(ids):
                 if val == self.currentId:
-                    curId = True
+                    curId = val
+                    curIdInd = i
                 if val == self.nextId:
                     nextId = val
-            '''
-            rvec = rvecs[0]
-            tvec = tvecs[0]
-            difference = self.angle(rvec, tvec)/45 #Normnalizing over 45 degrees
-            dist = self.distance(rvec,tvec)
-            #print(dist)
-            #print(difference*45)
+                    nextIdInd = i
+
+            if curId != None or nextId != None:
+                turn = 0
+                if curId == None:
+                    rvec = rvecs[nextIdInd]
+                    tvec = tvecs[nextIdInd]
+                    difference = self.angle(rvec, tvec)/45 #Normnalizing over 45 degrees
+                    dist = self.distance(rvec,tvec)
+                    
+                    turn = self.logic(nextId, difference, dist)
+                    if turn == 0:
+                        self.currentId = nextId
+                        self.nextId = self.qrmap(nextId)
+                else:
+                    rvec = rvecs[curIdInd]
+                    tvec = tvecs[curIdInd]
+                    difference = self.angle(rvec, tvec)/45
+                    dist = self.distance(rvec,tvec)
+
+                    turn = self.logic(curId, difference, dist)
+
+                    if turn == 0 and nextID != None:
+                            self.currentId = nextId
+                            self.nextId = self.qrmap(nextId)
+                # check turn: if -1 then turn else go to line followingc
+                    return turn, self.base_throttle, self.mode, self.recording
             
+        
 
         #BLOCK OUT SURROUNDINGS/TOP HALF
 
@@ -1059,7 +1092,7 @@ class QRLineFollowerController(object):
         difference = (cX-x_center)/len(img_arr[0])
         print(difference)
         #RETURN VALUES (apply gain)
-        
+    
         return self.gain*difference, self.base_throttle, self.mode, self.recording
         
         #print(self.base_throttle)
@@ -1079,7 +1112,7 @@ class JoystickCreatorController(JoystickController):
 
     def init_js(self):
         '''
-        attempt to init joystick
+        attempt to i+-nit joystick
         '''
         try:
             self.js = JoystickCreator(self.dev_fn)

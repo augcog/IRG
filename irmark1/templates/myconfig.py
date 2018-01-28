@@ -26,8 +26,8 @@ PCA9685_I2C_BUSNUM = 1   #None will auto detect, which is fine on the pi. But ot
 
 #STEERING parameters for Traxxas 4-Tec chassis
 STEERING_CHANNEL = 1            #channel on the 9685 pwm board 0-15
-STEERING_LEFT_PWM = 260         #pwm value for full left steering
-STEERING_RIGHT_PWM = 500        #pwm value for full right steering
+STEERING_LEFT_PWM = 275         #pwm value for full left steering
+STEERING_RIGHT_PWM = 515        #pwm value for full right steering
 
 #THROTTLE parameters for Traxxas 4-Tec chassis
 THROTTLE_CHANNEL = 0            #channel on the 9685 pwm board 0-15
