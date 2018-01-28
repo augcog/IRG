@@ -31,6 +31,7 @@ from irmark1.parts.behavior import BehaviorPart
 from irmark1.parts.file_watcher import FileWatcher
 from irmark1.parts.launch import AiLaunch
 from irmark1.parts.localization import Localization
+from irmark1.parts.verify import LocalizationCheck
 from irmark1.utils import *
 
 def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type='single', meta=[], qrline=None):
@@ -157,6 +158,8 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
         dist_coeffs = cam.distortion_coeffs
         loc = Localization(mtx, dist_coeffs, "tracks/Track_0.json")
         V.add(loc, inputs=['cam/image_array_a', 'cam/image_array_b'], outputs=['map/x', 'map/y', 'map/theta', 'map/qr_detected'], threaded=True)
+        loc_check = LocalizationCheck()
+        V.add(loc_check, inputs=['map/x', 'map/y', 'map/theta', 'map/qr_detected'], threaded=True)
 
     #this throttle filter will allow one tap back for esc reverse
     th_filter = ThrottleFilter()

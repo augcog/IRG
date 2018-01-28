@@ -101,8 +101,6 @@ class Localization(object):
             rvecs, tvecs ,_ = aruco.estimatePoseSingleMarkers(corners, 0.2032, self.camera_matrix, self.distortion_coeffs)
 
             xs, ys, thetas, dists = [], [], [], []
-            mintheta = None
-            mindist = float('inf')
             for i, val in enumerate(ids):
                 curr_time = time.ctime(time.time())
                 curr_id = val[0]
@@ -116,26 +114,24 @@ class Localization(object):
                 rel_x = tvec[0][0]
                 rel_y = tvec[0][2]
                 x,y = self.get_position(curr_id, rel_x, rel_y, theta)
-                print(curr_id, x, y, theta, time.time())
                 xs.append(x)
                 ys.append(y)
                 thetas.append(theta)
                 dists.append(dist)
-                if dist<mindist:
-                    mintheta = theta
-                    mindist = dist
 
             #TODO: If multiple QR codes, take the average relative to distance of those QR codes
-            norm, total_x, total_y = 0, 0, 0
+            norm, total_x, total_y, total_theta = 0, 0, 0, 0
 
             for i, val in enumerate(dists):
                 norm += 1/val
                 total_x += 1/val * xs[i]
                 total_y += 1/val * ys[i]
+                total_theta += 1/val * thetas[i]
             avg_x = total_x/norm
             avg_y = total_y/norm
+            avg_theta = total_theta/norm
 
-            return avg_x, avg_y, mintheta, True#Spherical Interp
+            return avg_x, avg_y, avg_theta, True#Spherical Interp
         else:
             return None, None, None, False
 
