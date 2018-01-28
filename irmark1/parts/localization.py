@@ -1,6 +1,10 @@
 import json 
 import time
 import math
+import os
+from cv2 import aruco
+import numpy as np
+import cv2
 
 class Localization(object):
     '''
@@ -18,7 +22,10 @@ class Localization(object):
         self.aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
     
     def __init__(self, camera_matrix, distortion_coeffs, json_in):
+        print("initiated Localization")
+
         self.json_in = json_in
+        print(os.path.abspath(json_in))
         content = open(self.json_in)
         self.map =  json.loads(content.read())
         self.qr_loc = self.map["QR codes"]
@@ -28,7 +35,7 @@ class Localization(object):
         self.distortion_coeffs = distortion_coeffs
         self.aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
 
-    def get_position(self, qr_id, dist, angle):
+    def get_position(self, qr_id, rel_x, rel_y, angle):
         qr_loc = self.qr_loc[qr_id]["Location"]
         line = self.qr_loc[qr_id]["Segment"]
 
@@ -40,29 +47,39 @@ class Localization(object):
         if abs(e_x - s_x) > abs(e_y - s_y):
             #car is moving in the x direction
             if s_x < e_x:
-                x = qr_loc[0] - dist * math.sin(angle)
-                y = qr_loc[1] - dist * math.cos(angle)
+                x = qr_loc[0] - rel_x
+                y = qr_loc[1] - rel_y
             else: 
-                x = qr_loc[0] + dist * math.sin(angle)
-                y = qr_loc[1] - dist * math.cos(angle)
+                x = qr_loc[0] + rel_x
+                y = qr_loc[1] - rel_y
         else: 
             #car is moving in the y direction
             if s_y < e_y:
-                x = qr_loc[0] - dist * math.sin(angle)
-                y = qr_loc[1] - dist * math.cos(angle)
+                x = qr_loc[0] - rel_x
+                y = qr_loc[1] - rel_y
             else: 
-                x = qr_loc[0] - dist * math.sin(angle)
-                y = qr_loc[1] + dist * math.cos(angle)
+                x = qr_loc[0] - rel_x
+                y = qr_loc[1] + rel_y
 
-        return x, y, angle
+        return x, y
         
     def angle(self, rvec, tvec):
-        yaw = 0.1*180*math.atan2(tvec[0][0], tvec[0][1])
+        # yaw = 0.1*180*math.atan2(tvec[0][0], tvec[0][1])
+        rmat = cv2.Rodrigues(rvec)[0]
+        P = np.hstack((rmat,tvec.T))
+        affine_P = np.insert(P,len(P),np.array([0]*len(P)+[1]),0)
+        P = np.linalg.inv(affine_P)
+        P = np.delete(P,len(P)-1, 0)
+        eul = -cv2.decomposeProjectionMatrix(P)[6]
+        yaw = eul[1,0] #rotational angle
         return yaw
 
     def distance(self,rvec,tvec):
         tvec = tvec[0]
         return math.sqrt(tvec[0]**2 + tvec[1]**2+tvec[2]**2)
+
+    def update(self):
+        return
 
     def run_threaded(self, img_arr=None, depth_arr=None):
         if type(img_arr) == np.ndarray:
@@ -93,9 +110,13 @@ class Localization(object):
                 rvec = rvecs[i]
                 tvec = tvecs[i]
                 dist = self.distance(rvec,tvec)
-                difference = self.angle(rvec, tvec)
-
-                x,y,theta = self.get_position(curr_id, dist, difference)
+                theta = self.angle(rvec, tvec)
+                
+                angle = 0.1*180*math.atan2(tvec[0][0], tvec[0][1])
+                rel_x = tvec[0][0]
+                rel_y = tvec[0][2]
+                x,y = self.get_position(curr_id, rel_x, rel_y, theta)
+                print(curr_id, x, y, theta, time.time())
                 xs.append(x)
                 ys.append(y)
                 thetas.append(theta)
