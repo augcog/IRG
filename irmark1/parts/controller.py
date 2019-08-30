@@ -945,7 +945,7 @@ class QRLineFollowerController(object):
         self.qrmap = {}
         self.typemap = {}
         self.mode = 'user'
-        self.recording = False
+        self.recording = True
         #ADD QR CODES AND TYPES TO MAP
         self.add_qr(9,1,-1)
         self.add_qr(1,7, 1)
@@ -1026,7 +1026,7 @@ class QRLineFollowerController(object):
             #print(difference*45)
             
 
-        '''#BLOCK OUT SURROUNDINGS/TOP HALF
+        #BLOCK OUT SURROUNDINGS/TOP HALF
 
         for j in range(len(img_arr)):
             for i in range(len(img_arr[0])):
@@ -1046,7 +1046,7 @@ class QRLineFollowerController(object):
         gray = cv2.split(res)[2]
 
         if cv2.countNonZero(gray) == 0:
-            return 0, self.base_throttle
+            return 0, 0.8*self.base_throttle, self.mode, self.recording
 
         #Get Difference
 
@@ -1058,9 +1058,9 @@ class QRLineFollowerController(object):
         #RETURN VALUES (apply gain)
         
         return self.gain*difference, self.base_throttle, self.mode, self.recording
-        '''
+        
         #print(self.base_throttle)
-        return self.gain*difference, self.base_throttle, self.mode, self.recording
+        #return self.gain*difference, self.base_throttle, self.mode, self.recording
         
 
 
