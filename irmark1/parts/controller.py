@@ -894,8 +894,9 @@ class JoystickController(object):
         self.chaos_monkey_steering = None
 
 
-    def run_threaded(self, img_arr=None):
-        self.img_arr = img_arr
+    def run_threaded(self, img_arr_a=None, img_arr_b=None):
+        self.img_arr_a = img_arr_a
+        self.img_arr_b = img_arr_b
 
         '''
         process E-Stop state machine
@@ -924,7 +925,7 @@ class JoystickController(object):
         return self.angle, self.throttle, self.mode, self.recording
 
 
-    def run(self, img_arr=None):
+    def run(self, img_arr_a=None, img_arr_b=None):
         raise Exception("We expect for this part to be run with the threaded=True argument.")
         return None, None, None, None
 
@@ -971,7 +972,7 @@ class QRLineFollowerController(object):
         self.qrmap[id_] = next_
         self.typemap[id_] = type_
 
-    def run(self, img_arr=None):
+    def run(self, img_arr=None,depth_arr=None):
         return 0, 0, self.mode, self.recording
 
     def angle(self, rvec, tvec):
@@ -993,7 +994,7 @@ class QRLineFollowerController(object):
     def update(self):
         return
 
-    def run_threaded(self, img_arr=None):
+    def run_threaded(self, img_arr=None, depth_arr=None):
 
         if type(img_arr) == np.ndarray:
             if not img_arr.size:

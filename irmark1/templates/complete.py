@@ -119,7 +119,10 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
         else:
             raise(Exception("Unkown camera type: %s" % cfg.CAMERA_TYPE))
             
-        V.add(cam, inputs=inputs, outputs=['cam/image_array'], threaded=threaded)
+        if cfg.CAMERA_TYPE == "D435i":
+            V.add(cam, inputs = inputs, outputs=['cam/image_array_a', 'cam/image_array_b', 'imu/acl_x', 'imu/acl_y', 'imu/acl_z', 'imu/gyr_x', 'imu/gyr_y', 'imu/gyr_z'], threaded = threaded)
+        else:
+            V.add(cam, inputs=inputs, outputs=['cam/image_array'], threaded=threaded)
         
     if use_joystick or cfg.USE_JOYSTICK_AS_DEFAULT:
         #modify max_throttle closer to 1.0 to have more power
@@ -143,12 +146,8 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
         #This web controller will create a web server that is capable
         #of managing steering, throttle, and modes, and more.
         ctr = LocalWebController()
-
     
-    V.add(ctr, 
-          inputs=['cam/image_array'],
-          outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
-          threaded=True)
+    V.add(ctr, inputs=['cam/image_array_a', 'cam/image_array_b'],outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'], threaded=True)
 
     #this throttle filter will allow one tap back for esc reverse
     th_filter = ThrottleFilter()
@@ -260,7 +259,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
         ctr.set_button_down_trigger('circle', show_record_acount_status)
 
     #IMU
-    if cfg.HAVE_IMU:
+    if cfg.HAVE_IMU and cfg.CAMERA_TYPE!="D435i":
         from irmark1.parts.imu import Mpu6050
         imu = Mpu6050()
         V.add(imu, outputs=['imu/acl_x', 'imu/acl_y', 'imu/acl_z',
@@ -506,14 +505,12 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
 
     
     #add tub to save data
-
-    inputs=['cam/image_array',
-            'user/angle', 'user/throttle', 
-            'user/mode']
-
-    types=['image_array',
-           'float', 'float',
-           'str']
+    if cfg.CAMERA_TYPE == "D435i":
+        inputs =  ['cam/image_array_a', 'cam/image_array_b', 'user/angle', 'user/throttle', 'user/mode']
+        types=['image_array', 'lossless_image_array', 'float', 'float', 'str']
+    else:
+        inputs = ['cam/image_array', 'user/angle', 'user/throttle', 'user/mode']
+        types=['image_array', 'float', 'float', 'str']
 
     if cfg.TRAIN_BEHAVIORS:
         inputs += ['behavior/state', 'behavior/label', "behavior/one_hot_state_array"]

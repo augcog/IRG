@@ -8,12 +8,19 @@
 # The update operation will not touch this file.
 # """
 
-# CAMERA
-CAMERA_TYPE = "D435i"
-IMAGE_W = 320
+# CAMERA INPUT
+CAMERA_TYPE = "D435i"   # Available resolutions: 424x240, 640x360, 640x480, 848x480, 1280x720
+IMAGE_W = 424
 IMAGE_H = 240
 IMAGE_DEPTH = 3         # default RGB=3, make 1 for mono
 CAMERA_FRAMERATE = 30
+HAVE_IMU = True
+
+# FOR TRAINING
+DNN_IMAGE_W = 212
+DNN_IMAGE_H = 120
+DNN_IMAGE_DEPTH = 3
+
 # CSIC camera
 PCA9685_I2C_BUSNUM = 1   #None will auto detect, which is fine on the pi. But other platforms should specify the bus num.
 
@@ -29,7 +36,7 @@ THROTTLE_STOPPED_PWM = 370      #pwm value for no movement
 THROTTLE_REVERSE_PWM = 300      #pwm value for max reverse throttle
 
 CONTROLLER_TYPE = "xbox"
-JOYSTICK_MAX_THROTTLE = 0.2
+JOYSTICK_MAX_THROTTLE = 0.5
 JOYSTICK_STEERING_SCALE = 1.0 
 
 #Scale the output of the throttle of the ai pilot for all model types.

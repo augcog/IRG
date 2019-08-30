@@ -84,9 +84,8 @@ class RS_T265(object):
 
 class RS_D435i(object):
     '''
-    The Intel Realsense T265 camera is a device which uses an imu, twin fisheye cameras,
-    and an Movidius chip to do sensor fusion and emit a world space coordinate frame that 
-    is remarkably consistent.
+    Intel RealSense depth camera D435i combines the robust depth sensing capabilities of the D435 with the addition of an inertial measurement unit (IMU).
+    ref: https://www.intelrealsense.com/depth-camera-d435i/
     '''
 
     def __init__(self, image_w=640, image_h=480, image_d=3, image_output=True, framerate=30):
@@ -102,7 +101,7 @@ class RS_D435i(object):
 
         if self.image_output:
             cfg.enable_stream(rs.stream.color, image_w, image_h, rs.format.rgb8, framerate) # color camera
-            # cfg.enable_stream(rs.stream.depth, image_w, image_h, rs.format.z16, framerate) # depth camera
+            cfg.enable_stream(rs.stream.depth, image_w, image_h, rs.format.z16, framerate) # depth camera
 
         # Start streaming with requested config
         self.pipe.start(cfg)
@@ -120,9 +119,10 @@ class RS_D435i(object):
         self.matrix = np.float32([[fx, 0, ppx],[0,fy,ppy],[0,0,1]])
 
         zero_vec = (0.0, 0.0, 0.0)
-        self.gyro = zero_vec
-        self.acc = zero_vec
+        self.gyr = zero_vec
+        self.acl = zero_vec
         self.img = None
+        self.dimg = None
 
     def poll(self):
         try:
@@ -133,14 +133,16 @@ class RS_D435i(object):
 
         if self.image_output:
             color_frame = frames.get_color_frame()
+            depth_frame = frames.get_depth_frame()
             self.img = np.asanyarray(color_frame.get_data())
+            self.dimg = np.asanyarray(depth_frame.get_data())
 
         # Fetch IMU frame
         accel = frames.first_or_default(rs.stream.accel)
         gyro = frames.first_or_default(rs.stream.gyro)
         if accel and gyro:
-            self.acc = accel.as_motion_frame().get_motion_data()
-            self.gyro = gyro.as_motion_frame().get_motion_data()
+            self.acl = accel.as_motion_frame().get_motion_data()
+            self.gyr = gyro.as_motion_frame().get_motion_data()
             # print('realsense accel(%f, %f, %f)' % (self.acc.x, self.acc.y, self.acc.z))
             # print('realsense gyro(%f, %f, %f)' % (self.gyro.x, self.gyro.y, self.gyro.z))
 
@@ -149,7 +151,7 @@ class RS_D435i(object):
             self.poll()
 
     def run_threaded(self):
-        return self.img
+        return self.img, self.dimg, self.acl.x, self.acl.y, self.acl.z, self.gyr.x, self.gyr.y, self.gyr.z
 
     def run(self):
         self.poll()

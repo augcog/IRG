@@ -218,7 +218,11 @@ class Tub(object):
         for key, val in data.items():
             typ = self.get_input_type(key)
 
-            if (val is not None) and (typ == 'float'):
+            if (val is None):
+                msg = 'No val value'
+                raise TypeError(msg)
+
+            if typ == 'float':
                 # in case val is a numpy.float32, which json doesn't like
                 json_data[key] = float(val)
 
@@ -235,7 +239,11 @@ class Tub(object):
                 name = self.make_file_name(key, ext='.jpg')
                 img.save(os.path.join(self.path, name))
                 json_data[key]=name
-
+            elif typ == 'lossless_image_array':
+                img = Image.fromarray(np.uint16(val))
+                name = self.make_file_name(key, ext='.png')
+                img.save(os.path.join(self.path, name), compress_level=0)
+                json_data[key]=name
             else:
                 msg = 'Tub does not know what to do with this type {}'.format(typ)
                 raise TypeError(msg)
