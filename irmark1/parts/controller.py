@@ -975,16 +975,16 @@ class QRLineFollowerController(object):
         return 0, 0, self.mode, self.recording
 
     def angle(self, rvec, tvec):
-        rmat = cv2.Rodrigues(rvec)[0]
-        P = np.hstack((rmat,tvec.T))
-        eul = -cv2.decomposeProjectionMatrix(P)[6]
-        #yaw = atan2(eul[1,0], eul[0,0])
-        yaw = 180*eul[1,0]/math.pi
-        print("P",P)
-        print("eul", eul)
-        print("yaw", yaw)
-        print("eul[1,0]", eul[1,0])
-        return yaw
+        #rmat = cv2.Rodrigues(rvec)[0]
+        #P = np.hstack((rmat,tvec.T))
+        #eul = -cv2.decomposeProjectionMatrix(P)[6]
+        yaw = 1.8*180*math.atan2(tvec[0][0], tvec[0][1])
+        #yaw = 180*eul[1,0]/math.pi rotational angle
+        # print("P",P)
+        # print("eul", eul)
+        #print("yaw", yaw)
+        # print("eul[1,0]", eul[1,0])
+        return yaw #add minus for the rotational angle
     
     def distance(self,rvec,tvec):
         tvec = tvec[0]
@@ -1026,8 +1026,7 @@ class QRLineFollowerController(object):
             #print(difference*45)
             
 
-        '''
-        #BLOCK OUT SURROUNDINGS/TOP HALF
+        '''#BLOCK OUT SURROUNDINGS/TOP HALF
 
         for j in range(len(img_arr)):
             for i in range(len(img_arr[0])):
@@ -1043,15 +1042,18 @@ class QRLineFollowerController(object):
         mask = cv2.inRange(hsv, white_bottom, white_top)
         res = cv2.bitwise_and(img_arr, img_arr, mask=mask)
 
-        if cv2.countNonZero(res) == 0:
+        #Raking the grayscale of the HSV (for our cases the v should be enough)
+        gray = cv2.split(res)[2]
+
+        if cv2.countNonZero(gray) == 0:
             return 0, self.base_throttle
 
         #Get Difference
 
-        M = cv2.moments(res)
+        M = cv2.moments(gray)
         cX = int(M["m10"] / M["m00"])
         cY = int(M["m01"] / M["m00"])
-        x_center = len(res[0])//2
+        x_center = len(gray[0])//2
         difference = (cX-x_center)//len(img_arr[0])
         #RETURN VALUES (apply gain)
         
@@ -1059,6 +1061,7 @@ class QRLineFollowerController(object):
         '''
         #print(self.base_throttle)
         return self.gain*difference, self.base_throttle, self.mode, self.recording
+        
 
 
 
