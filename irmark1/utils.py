@@ -113,6 +113,9 @@ def rgb2gray(rgb):
     '''
     take a numpy rgb image return a new single channel image converted to greyscale
     '''
+    # image not rgb
+    if len(rgb.shape)<3 or rgb.shape[-1]<3:
+        return rgb
     return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
 
 

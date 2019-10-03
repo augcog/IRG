@@ -75,17 +75,19 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
             from irmark1.parts.realsense2 import RS_D435i
             from irmark1.parts.camera import CSICamera
 
-            camA = RS_D435i(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE)
-            camB = CSICamera(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE, gstreamer_flip=cfg.CSIC_CAM_GSTREAMER_FLIP_PARM)
+            camA = CSICamera(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE, gstreamer_flip=cfg.CSIC_CAM_GSTREAMER_FLIP_PARM)
+            camB = RS_D435i(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE)
         else:
             raise(Exception("Unsupported camera type: %s" % cfg.CAMERA_TYPE))
 
         V.add(camA, outputs=['cam/image_array_a'], threaded=True)
-        V.add(camB, outputs=['cam/image_array_b'], threaded=True)
+        if cfg.CAMERA_TYPE ==  "NANO-MARK1":
+            V.add(camB, outputs=['cam/image_array_b', 'cam/image_array_c', 'cam/imu_array'], threaded=True)
+        else:
+            V.add(camB, outputs=['cam/image_array_b'], threaded=True)
 
         from irmark1.parts.image import StereoPair
-
-        V.add(StereoPair(), inputs=['cam/image_array_a', 'cam/image_array_b'], 
+        V.add(StereoPair(), inputs=['cam/image_array_a', 'cam/image_array_b'],
             outputs=['cam/image_array'])
 
     else:
@@ -124,10 +126,16 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
             cam = RS_D435i(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE)
         else:
             raise(Exception("Unkown camera type: %s" % cfg.CAMERA_TYPE))
-            
-        V.add(cam, inputs=inputs, outputs=['cam/image_array'], threaded=threaded)
-        from irmark1.parts.image import Duplicator
-        V.add(Duplicator(2), inputs=['cam/image_array'], outputs=['cam/image_array_a', 'cam/image_array_b'])
+
+        if cfg.CAMERA_TYPE == "D435i":
+            V.add(cam, inputs=inputs, outputs=['cam/image_array_a', 'cam/image_array_b', 'cam/imu_array'], threaded=threaded)
+            from irmark1.parts.image import StereoPair
+            V.add(StereoPair(), inputs=['cam/image_array_a', 'cam/image_array_b'],
+            outputs=['cam/image_array'])
+        else:
+            V.add(cam, inputs=inputs, outputs=['cam/image_array'], threaded=threaded)
+            from irmark1.parts.image import Duplicator
+            V.add(Duplicator(2), inputs=['cam/image_array'], outputs=['cam/image_array_a', 'cam/image_array_b'])
 
     if use_joystick or cfg.USE_JOYSTICK_AS_DEFAULT:
         #modify max_throttle closer to 1.0 to have more power
