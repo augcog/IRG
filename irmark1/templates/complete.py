@@ -3,7 +3,7 @@
 Scripts to drive an IR Mark One (2) car
 
 Usage:
-    manage.py (drive) [--model=<model>] [--js] [--type=(linear|categorical|rnn|imu|behavior|3d|localizer|latent)] [--camera=(single|stereo)] [--meta=<key:value> ...]
+    manage.py (drive) [--model=<model>] [--js] [--type=(linear|categorical|rnn|imu|behavior|3d|localizer|latent)] [--camera=(single|stereo)] [--meta=<key:value> ...] [--qrline]
     manage.py (train) [--tub=<tub1,tub2,..tubn>] [--file=<file> ...] (--model=<model>) [--transfer=<model>] [--type=(linear|categorical|rnn|imu|behavior|3d|localizer)] [--continuous] [--aug]
 
 
@@ -12,8 +12,9 @@ Options:
     --js               Use physical joystick.
     -f --file=<file>   A text file containing paths to tub files, one per line. Option may be used more than once.
     --meta=<key:value> Key/Value strings describing describing a piece of meta data about this drive. Option may be used more than once.
+    --qrline           Use QRCode and LineFollowing Manuever
 """
-import os
+import os 
 import time
 
 from docopt import docopt
@@ -24,14 +25,14 @@ import irmark1 as m1
 #import parts
 from irmark1.parts.transform import Lambda, TriggeredCallback, DelayedTrigger
 from irmark1.parts.datastore import TubHandler
-from irmark1.parts.controller import LocalWebController, JoystickController
+from irmark1.parts.controller import LocalWebController, JoystickController, QRLineFollowerController
 from irmark1.parts.throttle_filter import ThrottleFilter
 from irmark1.parts.behavior import BehaviorPart
 from irmark1.parts.file_watcher import FileWatcher
 from irmark1.parts.launch import AiLaunch
 from irmark1.utils import *
 
-def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type='single', meta=[] ):
+def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type='single', meta=[], qrline=None):
     '''
     Construct a working robotic vehicle from many parts.
     Each part runs as a job in the Vehicle loop, calling either
@@ -132,6 +133,11 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
             netwkJs = JoyStickSub(cfg.NETWORK_JS_SERVER_IP)
             V.add(netwkJs, threaded=True)
             ctr.js = netwkJs
+
+    elif qrline and type(cam) == RS_D435i:
+        mtx = cam.matrix
+        dist_coeffs = cam.distortion_coeffs
+        ctr = QRLineFollowerController(0.1, 1, mtx, dist_coeffs)
 
     else:        
         #This web controller will create a web server that is capable
@@ -566,7 +572,7 @@ if __name__ == '__main__':
         model_type = args['--type']
         camera_type = args['--camera']
         drive(cfg, model_path=args['--model'], use_joystick=args['--js'], model_type=model_type, camera_type=camera_type,
-            meta=args['--meta'])
+            meta=args['--meta'],qrline=args['--qrline'])
     
     if args['train']:
         from train import multi_train, preprocessFileList

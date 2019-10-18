@@ -6,13 +6,15 @@ import struct
 import random
 from threading import Thread
 import logging
+import math
+import cv2
+from cv2 import aruco
+import numpy as np
 
 from prettytable import PrettyTable
 
 #import for syntactical ease
 from irmark1.parts.web_controller.web import LocalWebController
-from irmark1.parts.line_follower import QRMap, QRObject, QRTurnObject, QRStraightTurnObject, QRStraightCheckObject
-
 
 class Joystick(object):
     '''
@@ -942,18 +944,19 @@ class QRLineFollowerController(object):
         self.base_throttle = base_throttle
         self.qrmap = {}
         self.typemap = {}
-
+        self.mode = 'user'
+        self.recording = False
         #ADD QR CODES AND TYPES TO MAP
-        self.add_qr(9,1,"straight")
-        self.add_qr(1,7,"straightturn")
-        self.add_qr(7,6,"turn")
-        self.add_qr(6,4,"straightturn")
-        self.add_qr(4,2,"turn")
-        self.add_qr(2,8,"straight")
-        self.add_qr(8,5,"straightturn")
-        self.add_qr(5,0,"turn")
-        self.add_qr(0,3,"straightturn")
-        self.add_qr(3,9,"turn")
+        self.add_qr(9,1,-1)
+        self.add_qr(1,7, 1)
+        self.add_qr(7,6, 3)
+        self.add_qr(6,4,1)
+        self.add_qr(4,2,3)
+        self.add_qr(2,8,-1)
+        self.add_qr(8,5,1)
+        self.add_qr(5,0,3)
+        self.add_qr(0,3,1)
+        self.add_qr(3,9,3)
         #ID Init
         self.currentId = 9
         self.nextId = self.qrmap[9]
@@ -964,32 +967,66 @@ class QRLineFollowerController(object):
         self.aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
 
 
-    def add_qr(id_, next_, type_):
+    def add_qr(self, id_, next_, type_):
         self.qrmap[id_] = next_
         self.typemap[id_] = type_
 
-
     def run(self, img_arr=None):
+        return 0, 0, self.mode, self.recording
+
+    def angle(self, rvec, tvec):
+        rmat = cv2.Rodrigues(rvec)[0]
+        P = np.hstack((rmat,tvec.T))
+        eul = -cv2.decomposeProjectionMatrix(P)[6]
+        #yaw = atan2(eul[1,0], eul[0,0])
+        yaw = 180*eul[1,0]/math.pi
+        print("P",P)
+        print("eul", eul)
+        print("yaw", yaw)
+        print("eul[1,0]", eul[1,0])
+        return yaw
+    
+    def distance(self,rvec,tvec):
+        tvec = tvec[0]
+        return math.sqrt(tvec[0]**2 + tvec[1]**2+tvec[2]**2)
+
+    def update(self):
+        return
+
+    def run_threaded(self, img_arr=None):
+
+        if type(img_arr) == np.ndarray:
+            if not img_arr.size:
+                return 0,0,self.mode,self.recording
+        else:
+            return 0,0,self.mode,self.recording
 
         valid_ids = False
         gray = cv2.cvtColor(img_arr, cv2.COLOR_BGR2GRAY)
         parameters = cv2.aruco.DetectorParameters_create()
         parameters.adaptiveThreshConstant = 10
         corners, ids, rej = cv2.aruco.detectMarkers(gray, self.aruco_dict, parameters=parameters)
+        difference = 0
         if np.all(ids!= None):
             valid_ids = True
             rvecs, tvecs ,_ = aruco.estimatePoseSingleMarkers(corners, 0.2032, self.camera_matrix, self.distortion_coeffs)
-            nextId = None
+            '''nextId = None
             curId = None
             for i, val in enumerate(ids):
                 if val == self.currentId:
                     curId = True
                 if val == self.nextId:
                     nextId = val
+            '''
+            rvec = rvecs[0]
+            tvec = tvecs[0]
+            difference = self.angle(rvec, tvec)/45 #Normnalizing over 45 degrees
+            dist = self.distance(rvec,tvec)
+            #print(dist)
+            #print(difference*45)
             
-            if 
 
-
+        '''
         #BLOCK OUT SURROUNDINGS/TOP HALF
 
         for j in range(len(img_arr)):
@@ -1018,7 +1055,11 @@ class QRLineFollowerController(object):
         difference = (cX-x_center)//len(img_arr[0])
         #RETURN VALUES (apply gain)
         
-        return self.gain*difference, self.base_throttle
+        return self.gain*difference, self.base_throttle, self.mode, self.recording
+        '''
+        #print(self.base_throttle)
+        return self.gain*difference, self.base_throttle, self.mode, self.recording
+
 
 
 
