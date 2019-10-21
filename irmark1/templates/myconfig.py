@@ -13,8 +13,12 @@ CAMERA_TYPE = "D435i"   # Available resolutions: 424x240, 640x360, 640x480, 848x
 IMAGE_W = 424
 IMAGE_H = 240
 IMAGE_DEPTH = 3         # default RGB=3, make 1 for mono
-CAMERA_FRAMERATE = 30
+CAMERA_FRAMERATE = 60
 HAVE_IMU = True
+OUTPUT_IR_IMAGE = True  # If True, the image_array will be IR. If False, the image array will be BGR
+EMITTER_VALUE = 0       # 0 value will turn off the IR emitter
+
+DRIVE_LOOP_HZ = 60
 
 # FOR TRAINING
 DNN_IMAGE_W = 212

@@ -88,10 +88,11 @@ class RS_D435i(object):
     ref: https://www.intelrealsense.com/depth-camera-d435i/
     '''
 
-    def __init__(self, image_w=640, image_h=480, image_d=3, image_output=True, framerate=30):
+    def __init__(self, image_w=640, image_h=480, image_d=3, image_output=True, framerate=30, use_IR = False, emitter_value = 1):
         #Using the image_output will grab two image streams from the fisheye cameras but return only one.
         #This can be a bit much for USB2, but you can try it. Docs recommend USB3 connection for this.
         self.image_output = image_output
+        self.use_IR = use_IR
 
         # Declare RealSense pipeline, encapsulating the actual device and sensors
         self.pipe = rs.pipeline()
@@ -100,11 +101,18 @@ class RS_D435i(object):
         cfg.enable_stream(rs.stream.accel)
 
         if self.image_output:
-            cfg.enable_stream(rs.stream.color, image_w, image_h, rs.format.rgb8, framerate) # color camera
+            if (self.use_IR):
+                cfg.enable_stream(rs.stream.infrared, image_w, image_h, rs.format.y8, framerate)
+            else:
+                cfg.enable_stream(rs.stream.color, image_w, image_h, rs.format.rgb8, framerate) # color camera
             cfg.enable_stream(rs.stream.depth, image_w, image_h, rs.format.z16, framerate) # depth camera
 
         # Start streaming with requested config
-        self.pipe.start(cfg)
+        realsense_profile = self.pipe.start(cfg)
+        device = realsense_profile.get_device()
+        depth_sensor = device.query_sensors()[0]
+        depth_sensor.set_option(rs.option.emitter_enabled, emitter_value)
+        
         self.running = True
 
         zero_vec = (0.0, 0.0, 0.0)
@@ -121,9 +129,14 @@ class RS_D435i(object):
             return
 
         if self.image_output:
-            color_frame = frames.get_color_frame()
+            if not self.use_IR:
+                color_frame = frames.get_color_frame()
+                self.img = np.asanyarray(color_frame.get_data())
+            else:
+                infrared_frame = frames.get_infrared_frame()
+                self.img = np.asanyarray(infrared_frame.get_data())
+
             depth_frame = frames.get_depth_frame()
-            self.img = np.asanyarray(color_frame.get_data())
             self.dimg = np.asanyarray(depth_frame.get_data())
 
         # Fetch IMU frame

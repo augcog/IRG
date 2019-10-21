@@ -115,7 +115,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
             cam = MockCamera(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH)
         elif cfg.CAMERA_TYPE == "D435i":
             from irmark1.parts.realsense2 import RS_D435i
-            cam = RS_D435i(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE)
+            cam = RS_D435i(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE, use_IR = cfg.OUTPUT_IR_IMAGE, emitter_value = cfg.EMITTER_VALUE)
         else:
             raise(Exception("Unkown camera type: %s" % cfg.CAMERA_TYPE))
             
