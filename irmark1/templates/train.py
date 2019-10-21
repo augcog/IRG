@@ -554,7 +554,7 @@ def go_train(kl, cfg, train_gen, val_gen, gen_records, model_name, steps_per_epo
         epochs = cfg.MAX_EPOCHS
 
     workers_count = 1
-    use_multiprocessing = False
+    use_multiprocessing = True
 
     callbacks_list = [save_best]
 
