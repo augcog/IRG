@@ -505,8 +505,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
     #add tub to save data    
     inputs=['cam/image_array', 
             'user/angle', 'user/throttle', 
-            'user/mode']
-    
+            'user/mode']    
 
     types=['image_array',
            'float', 'float',
