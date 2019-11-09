@@ -9,7 +9,7 @@ import logging
 
 import numpy as np
 import pyrealsense2 as rs
-
+import cv2
 class RS_T265(object):
     '''
     The Intel Realsense T265 camera is a device which uses an imu, twin fisheye cameras,
@@ -87,12 +87,14 @@ class RS_D435i(object):
     Intel RealSense depth camera D435i combines the robust depth sensing capabilities of the D435 with the addition of an inertial measurement unit (IMU).
     ref: https://www.intelrealsense.com/depth-camera-d435i/
     '''
+    def gstreamer_pipelineout(self, output_width=1280, output_height=720, framerate=21,client_ip='127.0.0.1') : 
+        return 'appsrc ! videoconvert ! video/x-raw, format=(string)BGRx, width=%d, height=%d, framerate=(fraction)%d/1 ! videoconvert ! video/x-raw, format=(string)I420 ! omxh264enc control-rate=2 bitrate=8000000 ! video/x-h264, stream-format=byte-stream ! rtph264pay mtu=1400 ! udpsink host=%s port=5001 sync=false async=false'%(output_width,output_height,framerate,client_ip)
 
-    def __init__(self, image_w=640, image_h=480, image_d=3, image_output=True, framerate=30):
+    def __init__(self, image_w=640, image_h=480, image_d=3, image_output=True, framerate=30,client_ip='127.0.0.1'):
         #Using the image_output will grab two image streams from the fisheye cameras but return only one.
         #This can be a bit much for USB2, but you can try it. Docs recommend USB3 connection for this.
         self.image_output = image_output
-
+        self.client_ip=client_ip
         # Declare RealSense pipeline, encapsulating the actual device and sensors
         self.pipe = rs.pipeline()
         cfg = rs.config()
@@ -101,6 +103,12 @@ class RS_D435i(object):
 
         if self.image_output:
             cfg.enable_stream(rs.stream.color, image_w, image_h, rs.format.rgb8, framerate) # color camera
+            self.out_send = cv2.VideoWriter(self.gstreamer_pipelineout(
+                output_width=image_w,
+                output_height=image_h,
+                framerate=framerate,
+                client_ip=self.client_ip),cv2.CAP_GSTREAMER,0,30,(1280,720), True)
+
             cfg.enable_stream(rs.stream.depth, image_w, image_h, rs.format.z16, framerate) # depth camera
 
         # Start streaming with requested config
@@ -113,6 +121,7 @@ class RS_D435i(object):
         self.img = None
         self.dimg = None
 
+
     def poll(self):
         try:
             frames = self.pipe.wait_for_frames()
@@ -122,9 +131,11 @@ class RS_D435i(object):
 
         if self.image_output:
             color_frame = frames.get_color_frame()
+
             depth_frame = frames.get_depth_frame()
             self.img = np.asanyarray(color_frame.get_data())
             self.dimg = np.asanyarray(depth_frame.get_data())
+            self.out_send.write(self.img)
 
         # Fetch IMU frame
         accel = frames.first_or_default(rs.stream.accel)

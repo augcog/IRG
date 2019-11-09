@@ -133,8 +133,11 @@ class CSICamera(BaseCamera):
     def gstreamer_pipeline(self, capture_width=3280, capture_height=2464, output_width=224, output_height=224, framerate=21, flip_method=0) :   
         return 'nvarguscamerasrc sensor-id=0 ! video/x-raw(memory:NVMM), width=%d, height=%d, format=(string)NV12, framerate=(fraction)%d/1 ! nvvidconv flip-method=%d ! nvvidconv ! video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! videoconvert ! appsink' % (
                 capture_width, capture_height, framerate, flip_method, output_width, output_height)
+
+    def gstreamer_pipelineout(self, output_width=1280, output_height=720, framerate=21,client_ip='127.0.0.1') : 
+        return 'appsrc ! videoconvert ! video/x-raw, format=(string)BGRx, width=%d, height=%d, framerate=(fraction)%d/1 ! videoconvert ! video/x-raw, format=(string)I420 ! omxh264enc control-rate=2 bitrate=8000000 ! video/x-h264, stream-format=byte-stream ! rtph264pay mtu=1400 ! udpsink host=%s port=5000 sync=false async=false'%(output_width,output_height,framerate,client_ip)
     
-    def __init__(self, image_w=160, image_h=120, image_d=3, capture_width=3280, capture_height=2464, framerate=60, gstreamer_flip=0):
+    def __init__(self, image_w=160, image_h=120, image_d=3, capture_width=1280, capture_height=720, framerate=60, gstreamer_flip=0,client_ip='127.0.0.1'):
         '''
         gstreamer_flip = 0 - no flip
         gstreamer_flip = 1 - rotate CCW 90
@@ -149,6 +152,7 @@ class CSICamera(BaseCamera):
         self.capture_width = capture_width
         self.capture_height = capture_height
         self.framerate = framerate
+        self.client_ip=client_ip
 
     def init_camera(self):
         import cv2
@@ -163,6 +167,11 @@ class CSICamera(BaseCamera):
                 framerate=self.framerate,
                 flip_method=self.flip_method),
             cv2.CAP_GSTREAMER)
+        self.out_send = cv2.VideoWriter(self.gstreamer_pipelineout(
+                output_width=self.w,
+                output_height=self.h,
+                framerate=self.framerate,
+                client_ip=self.client_ip),cv2.CAP_GSTREAMER,0,30,(1280,720), True)
 
         self.poll_camera()
         print('CSICamera loaded.. .warming camera')
@@ -176,7 +185,9 @@ class CSICamera(BaseCamera):
     def poll_camera(self):
         import cv2
         self.ret , frame = self.camera.read()
+        self.out_send.write(frame)
         self.frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
 
     def run(self):
         self.poll_camera()
@@ -190,6 +201,7 @@ class CSICamera(BaseCamera):
         print('stoping CSICamera')
         time.sleep(.5)
         del(self.camera)
+        out_send.release()
 
 class V4LCamera(BaseCamera):
     '''
