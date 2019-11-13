@@ -89,3 +89,22 @@ On PC, run
 ```bash
 pip install -e .[pc]
 ```
+
+# How to calibrate the vehicle
+
+Every vehicle before being modified with AI components must be calibrated with respect to its chassis
+
+- By default, the vehicle should choose a LiPo battery. One should verify that the vehicle ESC has the LiPo low-voltage protection function activated if this function is available. Low-voltage LiPo batteries can be permanently damaged or even explode when used improperly.
+
+- Some RC cars have different control modes in their ESC, such as training versus racing mode. One should verify the ESC is in the correct mode such that later PWM commands can be fully executed.
+
+- The vehicle needs to be driven first using the factory radio controller. If the vehicle with neutral steering biases towards to the left or to the right, then such bias must be corrected by adjusting the steering counter-bias on the radio controller. 
+
+Finally, after the AI components are installed, one needs to calibrate the range of the PWM signals separately for steering and thruttle. Assuming the PCA servo board is connected to the Jetson Nano GPIO on bus 1 I2C (alternative is bus 0), then the calibration is via the command for calibrating thruttle
+```bash
+irg calibrate --channel 0 --bus=1
+```
+and for calibrating steering
+```bash
+irg calibrate --channel 1 --bus=1
+```
