@@ -102,7 +102,7 @@ class RS_D435i(object):
         cfg.enable_stream(rs.stream.accel)
 
         if self.image_output:
-            cfg.enable_stream(rs.stream.color, image_w, image_h, rs.format.rgb8, framerate) # color camera
+            cfg.enable_stream(rs.stream.color, image_w, image_h, rs.format.bgr8, framerate) # color camera
             self.out_send = cv2.VideoWriter(self.gstreamer_pipelineout(
                 output_width=image_w,
                 output_height=image_h,
