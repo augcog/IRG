@@ -46,14 +46,20 @@ def img_to_binary(img, format='jpeg'):
     return f.getvalue()
 
 
-def arr_to_binary(arr):
+def arr_to_binary(arr, bitrate=8):
     '''
     accepts: numpy array with shape (Hight, Width, Channels)
     returns: binary stream (used to save to database)
     '''
-    img = arr_to_img(arr)
-    return img_to_binary(img)
 
+    if bitrate==8:
+        img = arr_to_img(arr)
+    elif bitrate==16:
+        img = arr_to_uint16_img(arr)
+    else:
+        return None
+
+    return img_to_binary(img)
 
 def arr_to_img(arr):
     '''
@@ -61,6 +67,11 @@ def arr_to_img(arr):
     returns: binary stream (used to save to database)
     '''
     arr = np.uint8(arr)
+    img = Image.fromarray(arr)
+    return img
+
+def arr_to_uint16_img(arr):
+    arr = np.uint16(arr)
     img = Image.fromarray(arr)
     return img
 
