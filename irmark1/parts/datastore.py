@@ -218,7 +218,11 @@ class Tub(object):
         for key, val in data.items():
             typ = self.get_input_type(key)
 
-            if (val is not None) and (typ == 'float'):
+            if (val is None):
+                msg = 'No val value'
+                raise TypeError(msg)
+
+            if typ == 'float':
                 # in case val is a numpy.float32, which json doesn't like
                 json_data[key] = float(val)
 
