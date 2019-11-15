@@ -119,7 +119,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
             raise(Exception("Unkown camera type: %s" % cfg.CAMERA_TYPE))
             
         if cfg.CAMERA_TYPE == "D435i":
-            V.add(cam, inputs = inputs, output=['cam/image_array_a', 'cam/image_array_b', 'imu/acl_x', 'imu/acl_y', 'imu/acl_z', 'imu/gyr_x', 'imu/gyr_y', 'imu/gyr_z'], threaded = threaded)
+            V.add(cam, inputs = inputs, outputs=['cam/image_array_a', 'cam/image_array_b', 'imu/acl_x', 'imu/acl_y', 'imu/acl_z', 'imu/gyr_x', 'imu/gyr_y', 'imu/gyr_z'], threaded = threaded)
         else:
             V.add(cam, inputs=inputs, outputs=['cam/image_array'], threaded=threaded)
         
@@ -505,7 +505,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
     #add tub to save data
     if cfg.CAMERA_TYPE == "D435i":
         inputs =  ['cam/image_array_a', 'cam/image_array_b', 'user/angle', 'user/throttle', 'user/mode']
-        types=['image_array', 'lossless_image_array', float', 'float', 'str']
+        types=['image_array', 'lossless_image_array', 'float', 'float', 'str']
     else:
         inputs = ['cam/image_array', 'user/angle', 'user/throttle', 'user/mode']
         types=['image_array', 'float', 'float', 'str']
