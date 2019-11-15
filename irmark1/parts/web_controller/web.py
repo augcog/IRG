@@ -145,7 +145,6 @@ class LocalWebController(tornado.web.Application):
             self.disp_img_arr_a = disp_img_arr_a
         else:
             self.disp_img_arr_a = self.img_arr
-        
         if disp_img_arr_b is not None:
             self.disp_img_arr_b = disp_img_arr_b
         else:
@@ -158,11 +157,10 @@ class LocalWebController(tornado.web.Application):
             self.disp_img_arr_a = disp_img_arr_a
         else:
             self.disp_img_arr_a = self.img_arr
-        
         if disp_img_arr_b is not None:
             self.disp_img_arr_b = disp_img_arr_b
         else:
-            self.disp_img_arr_b = self.disp_img_arr_a       
+            self.disp_img_arr_b = self.disp_img_arr_a
         return self.angle, self.throttle, self.mode, self.recording
 
     def shutdown(self):
@@ -192,7 +190,7 @@ class VideoAPI(tornado.web.RequestHandler):
     '''
     Serves a MJPEG of the images posted from the vehicle. 
     '''
-    async def get(self, scr):
+    async def get(self, src):
 
         self.set_header("Content-type", "multipart/x-mixed-replace;boundary=--boundarydonotcross")
 
@@ -203,12 +201,11 @@ class VideoAPI(tornado.web.RequestHandler):
             interval = .1
             if self.served_image_timestamp + interval < time.time():
 
-
-                img = utils.arr_to_binary(self.application.img_arr)
-                if scr == 'a':
+                if src == 'a':
                     img = utils.arr_to_binary(self.application.disp_img_arr_a)
-                if scr == 'b':
-                    img = utils.arr_to_binary(self.application.disp_img_arr_b)
+                elif src == 'b':
+                    # img = utils.arr_to_binary(self.application.disp_img_arr_b)
+                    pass
                 else:
                     raise
 
