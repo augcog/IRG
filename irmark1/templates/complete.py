@@ -143,7 +143,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
 
     
     V.add(ctr, 
-          inputs=['cam/image_array', 'cam/image_array_a', 'cam/image_array_b'],
+          inputs=['cam/image_array_a', 'cam/image_array_b'],
           outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
           threaded=True)
 
