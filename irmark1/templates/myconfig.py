@@ -36,7 +36,7 @@ THROTTLE_STOPPED_PWM = 370      #pwm value for no movement
 THROTTLE_REVERSE_PWM = 300      #pwm value for max reverse throttle
 
 CONTROLLER_TYPE = "xbox"
-JOYSTICK_MAX_THROTTLE = 0.2
+JOYSTICK_MAX_THROTTLE = 0.5
 JOYSTICK_STEERING_SCALE = 1.0 
 
 #Scale the output of the throttle of the ai pilot for all model types.

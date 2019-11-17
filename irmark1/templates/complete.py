@@ -136,16 +136,16 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
             V.add(netwkJs, threaded=True)
             ctr.js = netwkJs
 
+        V.add(ctr, inputs=['cam/image_array_a'],outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'], threaded=True)
+
     else:        
         #This web controller will create a web server that is capable
         #of managing steering, throttle, and modes, and more.
         ctr = LocalWebController()
+        V.add(ctr, inputs=['cam/image_array_a', 'cam/image_array_b'],outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'], threaded=True)
 
     
-    V.add(ctr, 
-          inputs=['cam/image_array', 'cam/image_array_a', 'cam/image_array_b'],
-          outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
-          threaded=True)
+
 
     #this throttle filter will allow one tap back for esc reverse
     th_filter = ThrottleFilter()
