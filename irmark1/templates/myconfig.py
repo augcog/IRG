@@ -33,3 +33,9 @@ THROTTLE_CHANNEL = 0            #channel on the 9685 pwm board 0-15
 THROTTLE_FORWARD_PWM = 500      #pwm value for max forward throttle
 THROTTLE_STOPPED_PWM = 370      #pwm value for no movement
 THROTTLE_REVERSE_PWM = 220      #pwm value for max reverse throttle
+
+CONTROLLER_TYPE = "wheel"
+JOYSTICK_MAX_THROTTLE = 0.2
+JOYSTICK_STEERING_SCALE = 1.0
+
+AI_THROTTLE_MULT = 1.0
