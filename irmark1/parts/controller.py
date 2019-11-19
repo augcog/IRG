@@ -937,7 +937,7 @@ class JoystickController(object):
 
 
 class QRLineFollowerController(object):
-    def __init__(self, gain, base_throttle, camera_matrix, dist_coeffs):
+    def __init__(self, gain, base_throttle, camera_matrix, distortion_coeffs):
         self.gain = gain
         self.base_throttle = base_throttle
         self.qrmap = {}
@@ -958,9 +958,9 @@ class QRLineFollowerController(object):
         self.currentId = 9
         self.nextId = self.qrmap[9]
 
-        #Calibration for Camera Matrix/Distance Coefficients
+        #Calibration for Camera Matrix/Distortion Coefficients
         self.camera_matrix = camera_matrix
-        self.dist_coeffs = dist_coeffs
+        self.distortion_coeffs = distortion_coeffs
         self.aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
 
 
@@ -978,7 +978,7 @@ class QRLineFollowerController(object):
         corners, ids, rej = cv2.aruco.detectMarkers(gray, self.aruco_dict, parameters=parameters)
         if np.all(ids!= None):
             valid_ids = True
-            rvecs, tvecs ,_ = aruco.estimatePoseSingleMarkers(corners, 0.2032, mtx, dist)
+            rvecs, tvecs ,_ = aruco.estimatePoseSingleMarkers(corners, 0.2032, self.camera_matrix, self.distortion_coeffs)
             nextId = None
             curId = None
             for i, val in enumerate(ids):
