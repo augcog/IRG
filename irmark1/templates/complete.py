@@ -78,8 +78,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
         V.add(camB, outputs=['cam/image_array_b'], threaded=True)
 
         from irmark1.parts.image import StereoPair
-
-        V.add(StereoPair(), inputs=['cam/image_array_a', 'cam/image_array_b'], 
+        V.add(StereoPair(), inputs=['cam/image_array_a', 'cam/image_array_b'],
             outputs=['cam/image_array'])
 
     else:
@@ -117,9 +116,13 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
             cam = RS_D435i(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE)
         else:
             raise(Exception("Unkown camera type: %s" % cfg.CAMERA_TYPE))
-            
-        V.add(cam, inputs=inputs, outputs=['cam/image_array'], threaded=threaded)
-        
+
+        if cfg.CAMERA_TYPE == "D435i":
+            V.add(cam, inputs=inputs, outputs=['cam/image_array_a', 'cam/image_array_b', 'imu/acl_x', 'imu/acl_y', 'imu/acl_z',
+                'imu/gyr_x', 'imu/gyr_y', 'imu/gyr_z'], threaded=threaded)
+        else:
+            V.add(cam, inputs=inputs, outputs=['cam/image_array'], threaded=threaded)
+
     if use_joystick or cfg.USE_JOYSTICK_AS_DEFAULT:
         #modify max_throttle closer to 1.0 to have more power
         #modify steering_scale lower than 1.0 to have less responsive steering
@@ -140,7 +143,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
 
     
     V.add(ctr, 
-          inputs=['cam/image_array'],
+          inputs=['cam/image_array_a', 'cam/image_array_b'],
           outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
           threaded=True)
 
@@ -254,7 +257,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
         ctr.set_button_down_trigger('circle', show_record_acount_status)
 
     #IMU
-    if cfg.HAVE_IMU:
+    if cfg.HAVE_IMU and cfg.CAMERA_TYPE != "D435i":
         from irmark1.parts.imu import Mpu6050
         imu = Mpu6050()
         V.add(imu, outputs=['imu/acl_x', 'imu/acl_y', 'imu/acl_z',
@@ -499,15 +502,23 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
         V.add(motor, inputs=["throttle"])
 
     
-    #add tub to save data
-
-    inputs=['cam/image_array',
+    #add tub to save data    
+    inputs=['cam/image_array', 
             'user/angle', 'user/throttle', 
             'user/mode']
+    
 
     types=['image_array',
            'float', 'float',
            'str']
+
+    if cfg.CAMERA_TYPE == "D435i":
+        # remove 'cam/image_array'
+        inputs.pop(0)
+        types.pop(0)
+
+        inputs += ['cam/image_array_a', 'cam/image_array_b']
+        types += ['image_array', 'lossless_image_array']
 
     if cfg.TRAIN_BEHAVIORS:
         inputs += ['behavior/state', 'behavior/label', "behavior/one_hot_state_array"]

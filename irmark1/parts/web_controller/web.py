@@ -123,7 +123,7 @@ class LocalWebController(tornado.web.Application):
         handlers = [
             (r"/", tornado.web.RedirectHandler, dict(url="/drive")),
             (r"/drive", DriveAPI),
-            (r"/video",VideoAPI),
+            (r"/video_(.)",VideoAPI),
             (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": self.static_file_path}),
             ]
 
@@ -139,12 +139,22 @@ class LocalWebController(tornado.web.Application):
         self.listen(self.port)
         tornado.ioloop.IOLoop.instance().start()
 
-    def run_threaded(self, img_arr=None):
-        self.img_arr = img_arr
+    def run_threaded(self, disp_img_arr_a=None, disp_img_arr_b=None):
+        if disp_img_arr_a is not None:
+            self.disp_img_arr_a = disp_img_arr_a
+        if disp_img_arr_b is not None:
+            self.disp_img_arr_b = disp_img_arr_b
+        else:
+            self.disp_img_arr_b = self.disp_img_arr_a
         return self.angle, self.throttle, self.mode, self.recording
         
-    def run(self, img_arr=None):
-        self.img_arr = img_arr
+    def run(self, disp_img_arr_a=None, disp_img_arr_b=None):
+        if disp_img_arr_a is not None:
+            self.disp_img_arr_a = disp_img_arr_a
+        if disp_img_arr_b is not None:
+            self.disp_img_arr_b = disp_img_arr_b
+        else:
+            self.disp_img_arr_b = self.disp_img_arr_a
         return self.angle, self.throttle, self.mode, self.recording
 
     def shutdown(self):
@@ -174,7 +184,7 @@ class VideoAPI(tornado.web.RequestHandler):
     '''
     Serves a MJPEG of the images posted from the vehicle. 
     '''
-    async def get(self):
+    async def get(self, src):
 
         self.set_header("Content-type", "multipart/x-mixed-replace;boundary=--boundarydonotcross")
 
@@ -185,8 +195,12 @@ class VideoAPI(tornado.web.RequestHandler):
             interval = .1
             if self.served_image_timestamp + interval < time.time():
 
-
-                img = utils.arr_to_binary(self.application.img_arr)
+                if src == 'a':
+                    img = utils.arr_to_binary(self.application.disp_img_arr_a)
+                elif src == 'b':
+                    img = utils.arr_to_binary(self.application.disp_img_arr_b)
+                else:
+                    raise
 
                 self.write(my_boundary)
                 self.write("Content-type: image/jpeg\r\n")
