@@ -79,6 +79,8 @@ def main_detect(dist_constant=None):
         cap.release()
         print("Your NEW dist_constant is:", dist_constant)
     
+    print(mtx)
+
     input("press key and enter if ready to start videocapture")
 
     cap = cv2.VideoCapture(0)
@@ -116,9 +118,9 @@ def main_detect(dist_constant=None):
             cv2.putText(frame, "Id: " + strg, (0,64), font, 1, (0,255,0),2,cv2.LINE_AA)
 
         cv2.imshow("frame", frame)
-        cv2.waitKey(100)
+        cv2.waitKey(1)
 
 if __name__ == '__main__':
-    main_detect(1950.2) #1950.2 is a dummmy value that works reasonably well on a MacBook Pro 2018
+    main_detect(11000) #1950.2 for inches, 4953 for cm is a dummmy value that works reasonably well on a MacBook Pro 2018
 
 

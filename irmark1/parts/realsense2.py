@@ -108,6 +108,17 @@ class RS_D435i(object):
         self.pipe.start(cfg)
         self.running = True
 
+        self.profile = self.pipe.get_active_profile()
+        self.color_profile = rs.video_stream_profile(self.profile.get_stream(rs.stream.color))
+        self.color_intrinsics = self.color_profile.get_intrinsics()
+        self.dist_coeffs = self.color_intrinsics.coeffs 
+        fx = self.color_intrinsics.fx
+        fy = self.color_intrinsics.fy 
+        ppx = self.color_intrinsics.ppx
+        ppy = self.color_intrinsics.ppy
+
+        self.matrix = [[fx, 0, ppx],[0,fy,ppy],[0,0,1]]
+
         zero_vec = (0.0, 0.0, 0.0)
         self.gyro = zero_vec
         self.acc = zero_vec

@@ -11,6 +11,8 @@ from prettytable import PrettyTable
 
 #import for syntactical ease
 from irmark1.parts.web_controller.web import LocalWebController
+from irmark1.parts.line_follower import QRMap, QRObject, QRTurnObject, QRStraightTurnObject, QRStraightCheckObject
+
 
 class Joystick(object):
     '''
@@ -929,6 +931,95 @@ class JoystickController(object):
         #set flag to exit polling thread, then wait a sec for it to leave
         self.running = False
         time.sleep(0.5)
+
+#Simple QRLineFollower Controller
+
+
+
+class QRLineFollowerController(object):
+    def __init__(self, gain, base_throttle, camera_matrix, dist_coeffs):
+        self.gain = gain
+        self.base_throttle = base_throttle
+        self.qrmap = {}
+        self.typemap = {}
+
+        #ADD QR CODES AND TYPES TO MAP
+        self.add_qr(9,1,"straight")
+        self.add_qr(1,7,"straightturn")
+        self.add_qr(7,6,"turn")
+        self.add_qr(6,4,"straightturn")
+        self.add_qr(4,2,"turn")
+        self.add_qr(2,8,"straight")
+        self.add_qr(8,5,"straightturn")
+        self.add_qr(5,0,"turn")
+        self.add_qr(0,3,"straightturn")
+        self.add_qr(3,9,"turn")
+        #ID Init
+        self.currentId = 9
+        self.nextId = self.qrmap[9]
+
+        #Calibration for Camera Matrix/Distance Coefficients
+        self.camera_matrix = camera_matrix
+        self.dist_coeffs = dist_coeffs
+        self.aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
+
+
+    def add_qr(id_, next_, type_):
+        self.qrmap[id_] = next_
+        self.typemap[id_] = type_
+
+
+    def run(self, img_arr=None):
+
+        valid_ids = False
+        gray = cv2.cvtColor(img_arr, cv2.COLOR_BGR2GRAY)
+        parameters = cv2.aruco.DetectorParameters_create()
+        parameters.adaptiveThreshConstant = 10
+        corners, ids, rej = cv2.aruco.detectMarkers(gray, self.aruco_dict, parameters=parameters)
+        if np.all(ids!= None):
+            valid_ids = True
+            rvecs, tvecs ,_ = aruco.estimatePoseSingleMarkers(corners, 0.2032, mtx, dist)
+            nextId = None
+            curId = None
+            for i, val in enumerate(ids):
+                if val == self.currentId:
+                    curId = True
+                if val == self.nextId:
+                    nextId = val
+            
+            if 
+
+
+        #BLOCK OUT SURROUNDINGS/TOP HALF
+
+        for j in range(len(img_arr)):
+            for i in range(len(img_arr[0])):
+                if i < len(img_arr)//10 or i > 9*len(img_arr)//10 or j < len(img_arr)//2:
+                    img_arr[j][i] = [0,0,0]
+        
+        # HSV Thresholding on off-white/white
+
+        hsv = cv2.cvtColor(img_arr, cv2.COLOR_BGR2HSV)
+        white_bottom = np.array([0,0,225], dtype=np.uint8)
+        white_top = np.array([0,30,255], dtype=np.uint8)
+
+        mask = cv2.inRange(hsv, white_bottom, white_top)
+        res = cv2.bitwise_and(img_arr, img_arr, mask=mask)
+
+        if cv2.countNonZero(res) == 0:
+            return 0, self.base_throttle
+
+        #Get Difference
+
+        M = cv2.moments(res)
+        cX = int(M["m10"] / M["m00"])
+        cY = int(M["m01"] / M["m00"])
+        x_center = len(res[0])//2
+        difference = (cX-x_center)//len(img_arr[0])
+        #RETURN VALUES (apply gain)
+        
+        return self.gain*difference, self.base_throttle
+
 
 
 class JoystickCreatorController(JoystickController):
