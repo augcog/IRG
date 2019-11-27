@@ -93,7 +93,7 @@ def collate_records(records, gen_records, opts):
         except:
             continue
 
-        image_filename = json_data["cam/image_array"]
+        image_filename = json_data["cam/image_array_a"]
         image_path = os.path.join(basepath, image_filename)
 
         sample['record_path'] = record_path
@@ -779,7 +779,7 @@ def sequence_train(cfg, tub_names, model_name, transfer_model, model_type, conti
             json_data = json.load(fp)
 
         basepath = os.path.dirname(record_path)
-        image_filename = json_data["cam/image_array"]
+        image_filename = json_data["cam/image_array_a"]
         image_path = os.path.join(basepath, image_filename)
         sample = { 'record_path' : record_path, "image_path" : image_path, "json_data" : json_data }
 
