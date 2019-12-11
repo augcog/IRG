@@ -15,6 +15,7 @@ Options:
 """
 import os
 import time
+import cv2
 
 from docopt import docopt
 import numpy as np
@@ -267,14 +268,18 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
             self.cfg = cfg
 
         def run(self, img_arr):
+#            if img_arr.height != self.cfg.DNN_IMAGE_H or img_arr.width != self.cfg.DNN_IMAGE_W:
+            
+            img_arr = cv2.resize(img_arr, (self.cfg.DNN_IMAGE_W, self.cfg.DNN_IMAGE_H))
+            
             return normalize_and_crop(img_arr, self.cfg)
 
     if "coral" in model_type:
-        inf_input = 'cam/image_array'
+        inf_input = 'cam/image_array_a'
     else:
         inf_input = 'cam/normalized/cropped'
         V.add(ImgPreProcess(cfg),
-            inputs=['cam/image_array'],
+            inputs=['cam/image_array_a'],
             outputs=[inf_input],
             run_condition='run_pilot')
 
