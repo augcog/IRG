@@ -120,7 +120,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
             raise(Exception("Unkown camera type: %s" % cfg.CAMERA_TYPE))
             
         if cfg.CAMERA_TYPE == "D435i":
-            V.add(cam, inputs = inputs, outputs=['cam/image_array_a', 'cam/image_array_b', 'imu/acl_x', 'imu/acl_y', 'imu/acl_z', 'imu/gyr_x', 'imu/gyr_y', 'imu/gyr_z'], threaded = threaded)
+            V.add(cam, inputs = inputs, outputs=['cam/image_array', 'cam/depth_array', 'imu/acl_x', 'imu/acl_y', 'imu/acl_z', 'imu/gyr_x', 'imu/gyr_y', 'imu/gyr_z'], threaded = threaded)
         else:
             V.add(cam, inputs=inputs, outputs=['cam/image_array'], threaded=threaded)
         
@@ -141,7 +141,10 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
         #of managing steering, throttle, and modes, and more.
         ctr = LocalWebController()
     
-    V.add(ctr, inputs=['cam/image_array_a', 'cam/image_array_b'],outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'], threaded=True)
+    if cfg.CAMERA_TYPE == "D435i":
+        V.add(ctr, inputs=['cam/image_array', 'cam/depth_array'],outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'], threaded=True)
+    else:
+        V.add(ctr, inputs=['cam/image_array'], outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'], threaded=True)
 
     #this throttle filter will allow one tap back for esc reverse
     th_filter = ThrottleFilter()
@@ -275,11 +278,11 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
             return normalize_and_crop(img_arr, self.cfg)
 
     if "coral" in model_type:
-        inf_input = 'cam/image_array_a'
+        inf_input = 'cam/image_array'
     else:
         inf_input = 'cam/normalized/cropped'
         V.add(ImgPreProcess(cfg),
-            inputs=['cam/image_array_a'],
+            inputs=['cam/image_array'],
             outputs=[inf_input],
             run_condition='run_pilot')
 
@@ -504,7 +507,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
     
     #add tub to save data
     if cfg.CAMERA_TYPE == "D435i":
-        inputs =  ['cam/image_array_a', 'cam/image_array_b', 'user/angle', 'user/throttle', 'user/mode']
+        inputs =  ['cam/image_array', 'cam/depth_array', 'user/angle', 'user/throttle', 'user/mode']
         types=['image_array', 'lossless_image_array', 'float', 'float', 'str']
     else:
         inputs = ['cam/image_array', 'user/angle', 'user/throttle', 'user/mode']
