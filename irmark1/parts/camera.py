@@ -135,9 +135,9 @@ class CSICamera(BaseCamera):
                 capture_width, capture_height, framerate, flip_method, output_width, output_height)
 
     def gstreamer_pipelineout(self, output_width=1280, output_height=720, framerate=21,client_ip='127.0.0.1') : 
-        return 'appsrc ! videoconvert ! video/x-raw, format=(string)BGRx, width=%d, height=%d, framerate=(fraction)%d/1 ! videoconvert ! video/x-raw, format=(string)I420 ! omxh264enc control-rate=2 bitrate=8000000 ! video/x-h264, stream-format=byte-stream ! rtph264pay mtu=1400 ! udpsink host=%s port=5000 sync=false async=false'%(output_width,output_height,framerate,client_ip)
+        return 'appsrc ! videoconvert ! video/x-raw, format=(string)BGRx, width=%d, height=%d, framerate=(fraction)%d/1 ! videoconvert ! video/x-raw, format=(string)I420 ! omxh264enc tune=zerolatency bitrate=8000000 speed-preset=ultrafast ! video/x-h264, stream-format=byte-stream ! rtph264pay mtu=1400 ! udpsink host=%s port=5000 sync=false async=false'%(output_width,output_height,framerate,client_ip)
     
-    def __init__(self, image_w=160, image_h=120, image_d=3, capture_width=1280, capture_height=720, framerate=60, gstreamer_flip=0,client_ip='127.0.0.1'):
+    def __init__(self, image_w=160, image_h=120, image_d=3, capture_width=640, capture_height=480, framerate=60, gstreamer_flip=0,client_ip='127.0.0.1'):
         '''
         gstreamer_flip = 0 - no flip
         gstreamer_flip = 1 - rotate CCW 90
@@ -171,7 +171,7 @@ class CSICamera(BaseCamera):
                 output_width=self.w,
                 output_height=self.h,
                 framerate=self.framerate,
-                client_ip=self.client_ip),cv2.CAP_GSTREAMER,0,30,(1280,720), True)
+                client_ip=self.client_ip),cv2.CAP_GSTREAMER,0,self.framerate,(self.w,self.h), True)
 
         self.poll_camera()
         print('CSICamera loaded.. .warming camera')

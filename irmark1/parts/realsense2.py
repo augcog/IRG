@@ -88,7 +88,7 @@ class RS_D435i(object):
     ref: https://www.intelrealsense.com/depth-camera-d435i/
     '''
     def gstreamer_pipelineout(self, output_width=1280, output_height=720, framerate=21,client_ip='127.0.0.1') : 
-        return 'appsrc ! videoconvert ! video/x-raw, format=(string)BGRx, width=%d, height=%d, framerate=(fraction)%d/1 ! videoconvert ! video/x-raw, format=(string)I420 ! omxh264enc control-rate=2 bitrate=8000000 ! video/x-h264, stream-format=byte-stream ! rtph264pay mtu=1400 ! udpsink host=%s port=5001 sync=false async=false'%(output_width,output_height,framerate,client_ip)
+        return 'appsrc ! videoconvert ! video/x-raw, format=(string)BGRx, width=%d, height=%d, framerate=(fraction)%d/1 ! videoconvert ! video/x-raw, format=(string)I420 ! omxh264enc tune=zerolatency bitrate=8000000 speed-preset=ultrafast ! video/x-h264, stream-format=byte-stream ! rtph264pay mtu=1400 ! udpsink host=%s port=5001 sync=false async=false'%(output_width,output_height,framerate,client_ip)
 
     def __init__(self, image_w=640, image_h=480, image_d=3, image_output=True, framerate=30,client_ip='127.0.0.1'):
         #Using the image_output will grab two image streams from the fisheye cameras but return only one.
@@ -103,13 +103,14 @@ class RS_D435i(object):
 
         if self.image_output:
             cfg.enable_stream(rs.stream.color, image_w, image_h, rs.format.bgr8, framerate) # color camera
+
             self.out_send = cv2.VideoWriter(self.gstreamer_pipelineout(
                 output_width=image_w,
                 output_height=image_h,
                 framerate=framerate,
-                client_ip=self.client_ip),cv2.CAP_GSTREAMER,0,30,(1280,720), True)
+                client_ip=self.client_ip),cv2.CAP_GSTREAMER,0,framerate,(image_w,image_h), True)
 
-            cfg.enable_stream(rs.stream.depth, image_w, image_h, rs.format.z16, framerate) # depth camera
+            cfg.enable_stream(rs.stream.depth,  image_w, image_h,  rs.format.z16, framerate) # depth camera
 
         # Start streaming with requested config
         self.pipe.start(cfg)
