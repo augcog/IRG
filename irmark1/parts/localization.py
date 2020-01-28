@@ -114,8 +114,9 @@ class Localization(object):
             avg_x = total_x/norm
             avg_y = total_y/norm
 
-        return avg_x, avg_y, mintheta #Spherical Interp
-
+            return avg_x, avg_y, mintheta, True#Spherical Interp
+        else:
+            return None, None, None, False
 
 
 
