@@ -1,0 +1,80 @@
+{
+	"Comment": "The first item in this json is the Comment, followed by Track information, and QR code information. Track information has two portions, lines and turns. The Lines are stored as an array. Each index of the array contain the length of the track, the width of the track, starting x,y location, ending x,y location, and the associated QR code (stored in an array). Turns are also stored as an array. Each turn has an angle, radius, width, starting x,y location, and ending x,y location of the turn. This information is stored in an array. QR code must be perpendicular to the track. Units are meters. Indexing for arrays starts at 0.",
+	"Track": {
+		"Lines": [{
+			"Length": 11.598,
+			"Width": 0.5,
+			"Start": [0, 0],
+			"End": [11.598, 0],
+			"Number": [9, 1, 7]
+		}, {
+			"Length": 4.247,
+			"Width": 0.5,
+			"Start": [12.678, 1.077],
+			"End": [12.678, 5.324],
+			"Number": [6, 4]
+		}, {
+			"Length": 10.521,
+			"Width": 0.5,
+			"Start": [11.598, 6.4008],
+			"End": [1.077, 6.4008],
+			"Number": [2, 8, 5]
+		}, {
+			"Length": 5.324,
+			"Width": 0.5,
+			"Start": [0, 5.324],
+			"End": [0, 0],
+			"Number": [0, 3]
+		}],
+		"Turns": [{
+			"Angle": 90,
+			"Radius": 1.077,
+			"Width": 0.5,
+			"Start": [11.598, 0],
+			"End": [12.678, 1.077]
+		}, {
+			"Angle": 90,
+			"Radius": 1.077,
+			"Width": 0.5,
+			"Start": [12.678, 5.324],
+			"End": [11.598, 6.4008]
+		}, {
+			"Angle": 90,
+			"Radius": 1.077,
+			"Width": 0.5,
+			"Start": [1.077, 6.4008],
+			"End": [0, 5.324]
+		}]
+	},
+	"QR codes": [{
+		"Location": [0, 0],
+		"Segment": 3
+	}, {
+		"Location": [12.678, 0],
+		"Segment": 0
+	}, {
+		"Location": [5.000, 6.370],
+		"Segment": 2
+	}, {
+		"Location": [0.25, 0],
+		"Segment": 3
+	}, {
+		"Location": [12.500, 6.4008],
+		"Segment": 1
+	}, {
+		"Location": [0, 6.370],
+		"Segment": 2
+	}, {
+		"Location": [12.678, 6.4008],
+		"Segment": 1
+	}, {
+		"Location": [12.678, 0.75],
+		"Segment": 0
+	}, {
+		"Location": [0, 6.4008],
+		"Segment": 2
+	}, {
+		"Location": [5.000, 0],
+		"Segment": 0
+	}]
+}
