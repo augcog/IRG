@@ -5,13 +5,15 @@ import os
 from cv2 import aruco
 import numpy as np
 import cv2
+import rospy
 
 class Localization(object):
     '''
     allow for the car to locate its global positioning
     '''
+
     
-    def __init__(self, camera_matrix, distortion_coeffs, json_in):
+    def __init__(self, json_in):
         print("initiated Localization")
 
         self.json_in = json_in
@@ -24,15 +26,8 @@ class Localization(object):
         self.camera_matrix = camera_matrix
         self.distortion_coeffs = distortion_coeffs
         self.aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
-        self.prev_x = None
-        self.prev_y= None
-        self.prev_theta=None
-        self.prev_gray=None
-        self.cur_gray=None
-        self.prev_depth=None
-        self.cur_depth = None
 
-    def get_global_xy_position(self, qr_id, rel_x, rel_y, angle):
+    def get_position(self, qr_id, rel_x, rel_y, angle):
         qr_loc = self.qr_loc[qr_id]["Location"]
         line = self.qr_loc[qr_id]["Segment"]
 
@@ -78,7 +73,7 @@ class Localization(object):
     def update(self):
         return
 
-    def run_threaded(self, img_arr=None, depth_arr=None):
+    def run_threaded(self, camera_matrix=None, distortion_coeffs=None, img_arr=None, depth_arr=None):
         if type(img_arr) == np.ndarray:
             if not img_arr.size:
                 return 0,0,self.mode,self.recording
@@ -89,11 +84,10 @@ class Localization(object):
         img_arr = img_arr.copy()
         valid_ids = False
         gray = cv2.cvtColor(img_arr, cv2.COLOR_BGR2GRAY)
-        self.prev_frame, self.prev_depth = self.cur_frame, self.cur_depth
-        self.cur_frame, self.cur_depth = gray, depth_arr
         parameters = cv2.aruco.DetectorParameters_create()
         parameters.adaptiveThreshConstant = 10
         corners, ids, rej = cv2.aruco.detectMarkers(gray, self.aruco_dict, parameters=parameters)
+
         if np.all(ids!= None):
             valid_ids = True
             rvecs, tvecs ,_ = aruco.estimatePoseSingleMarkers(corners, 0.2032, self.camera_matrix, self.distortion_coeffs)
@@ -111,7 +105,7 @@ class Localization(object):
                 angle = 0.1*180*math.atan2(tvec[0][0], tvec[0][1])
                 rel_x = tvec[0][0]
                 rel_y = tvec[0][2]
-                x,y= self.get_global_xy_position(curr_id, rel_x, rel_y, theta)
+                x,y = self.get_position(curr_id, rel_x, rel_y, theta)
                 xs.append(x)
                 ys.append(y)
                 thetas.append(theta)
@@ -120,26 +114,25 @@ class Localization(object):
             #TODO: If multiple QR codes, take the average relative to distance of those QR codes
             norm, total_x, total_y, total_theta = 0, 0, 0, 0
 
-            positions = zip(xs, ys, thetas, dists)
-            avg_x, avg_y, avg_theta = self.avg_positions(positions)
+            for i, val in enumerate(dists):
+                norm += 1/val
+                total_x += 1/val * xs[i]
+                total_y += 1/val * ys[i]
+                total_theta += 1/val * thetas[i]
+            avg_x = total_x/norm
+            avg_y = total_y/norm
+            avg_theta = total_theta/norm
 
-            self.prev_x = avg_x
-            self.prev_y = avg_y
-            self.prev_theta = avg_theta
-            return avg_x, avg_y, avg_theta, True #Spherical Interp
+            return avg_x, avg_y, avg_theta, True#Spherical Interp
         else:
-            #TODO: Keyframe Matching for previous image
-            return self.prev_x, self.prev_y, self.prev_theta, False
+            return None, None, None, False
 
-    def avg_positions(self, positions):
-        norm = 0
-        avg_x, avg_y, avg_theta = 0, 0, 0
-        for x,y,theta,dist in positions:
-            avg_x += x/dist
-            avg_y += y/dist
-            avg_theta += theta/dist 
-            norm += 1/dist
-        return avg_x/norm, avg_y/norm, avg_theta/norm
+
 
     def shutdown(self):
         pass
+
+
+while True:
+    loc = Localization('tracks/track_name') #Pass in correct JSON
+
