@@ -88,11 +88,11 @@ class RS_D435i(object):
     ref: https://www.intelrealsense.com/depth-camera-d435i/
     '''
 
-    def __init__(self, image_w=640, image_h=480, image_d=3, image_output=True, framerate=30):
+    def __init__(self, image_w=640, image_h=480, image_d=3, image_output=True, framerate=30, use_IR=False):
         #Using the image_output will grab two image streams from the fisheye cameras but return only one.
         #This can be a bit much for USB2, but you can try it. Docs recommend USB3 connection for this.
         self.image_output = image_output
-
+        self.use_IR= use_IR
         # Declare RealSense pipeline, encapsulating the actual device and sensors
         self.pipe = rs.pipeline()
         cfg = rs.config()
@@ -100,7 +100,10 @@ class RS_D435i(object):
         cfg.enable_stream(rs.stream.accel)
 
         if self.image_output:
-            cfg.enable_stream(rs.stream.color, image_w, image_h, rs.format.rgb8, framerate) # color camera
+            if (self.use_IR):
+                cfg.enable_stream(rs.stream.infrared, image_w. image_h, rs.format.any, framerate)
+            else:
+                cfg.enable_stream(rs.stream.color, image_w, image_h, rs.format.rgb8, framerate) # color camera
             cfg.enable_stream(rs.stream.depth, image_w, image_h, rs.format.z16, framerate) # depth camera
 
         # Start streaming with requested config
@@ -108,13 +111,22 @@ class RS_D435i(object):
         self.running = True
 
         self.profile = self.pipe.get_active_profile()
-        self.color_profile = rs.video_stream_profile(self.profile.get_stream(rs.stream.color))
-        self.color_intrinsics = self.color_profile.get_intrinsics()
-        self.distortion_coeffs = np.float32(self.color_intrinsics.coeffs) 
-        fx = self.color_intrinsics.fx
-        fy = self.color_intrinsics.fy 
-        ppx = self.color_intrinsics.ppx
-        ppy = self.color_intrinsics.ppy
+        if use_IR:
+            self.infrared_profile = rs.video_stream_profile(self.profile.get_stream(rs.stream.infrared))
+            self.infrared_intrinsics = self.infrared_profile.get_intrinsics()
+            self.distortion_coeffs = np.float32(self.infrared_intrinsics.coeffs) 
+            fx = self.infrared_intrinsics.fx
+            fy = self.infrared_intrinsics.fy 
+            ppx = self.infrared_intrinsics.ppx
+            ppy = self.infrared_intrinsics.ppy
+        else:
+            self.color_profile = rs.video_stream_profile(self.profile.get_stream(rs.stream.color))
+            self.color_intrinsics = self.color_profile.get_intrinsics()
+            self.distortion_coeffs = np.float32(self.color_intrinsics.coeffs) 
+            fx = self.color_intrinsics.fx
+            fy = self.color_intrinsics.fy 
+            ppx = self.color_intrinsics.ppx
+            ppy = self.color_intrinsics.ppy
 
         self.matrix = np.float32([[fx, 0, ppx],[0,fy,ppy],[0,0,1]])
 

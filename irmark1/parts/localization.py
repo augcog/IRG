@@ -73,25 +73,12 @@ class Localization(object):
 
     def distance(self,rvec,tvec):
         tvec = tvec[0]
-        return math.sqrt(tvec[0]**2 + tvec[1]**2+tvec[2]**2)
+        return math.sqrt(tvec[0]**2 + tvec[2]**2)
 
     def update(self):
         return
 
-    def run_threaded(self, img_arr=None, depth_arr=None):
-        start_time = time.time()
-        if type(img_arr) == np.ndarray:
-            if not img_arr.size:
-                return 0,0,self.mode,self.recording
-        else:
-            return 0,0,self.mode,self.recording
-        
-        #finds all the QR codes seen in the current frame
-        img_arr = img_arr.copy()
-        valid_ids = False
-        gray = cv2.cvtColor(img_arr, cv2.COLOR_BGR2GRAY)
-        self.prev_gray, self.prev_depth = self.cur_gray, self.cur_depth
-        self.cur_gray, self.cur_depth = gray, depth_arr
+    def get_position_list(self, gray=None):
         parameters = cv2.aruco.DetectorParameters_create()
         parameters.adaptiveThreshConstant = 10
         corners, ids, rej = cv2.aruco.detectMarkers(gray, self.aruco_dict, parameters=parameters)
@@ -121,9 +108,28 @@ class Localization(object):
             #TODO: If multiple QR codes, take the average relative to distance of those QR codes
             norm, total_x, total_y, total_theta = 0, 0, 0, 0
 
-            positions = zip(xs, ys, thetas, dists)
-            avg_x, avg_y, avg_theta = self.avg_positions(positions)
+            positions_list = zip(xs, ys, thetas, dists)
+            return positions_list
+        return None
 
+    def run_threaded(self, img_arr=None, depth_arr=None):
+        start_time = time.time()
+        if type(img_arr) == np.ndarray:
+            if not img_arr.size:
+                return 0,0,self.mode,self.recording
+        else:
+            return 0,0,self.mode,self.recording
+        
+        #finds all the QR codes seen in the current frame
+        img_arr = img_arr.copy()
+        valid_ids = False
+        gray = cv2.cvtColor(img_arr, cv2.COLOR_BGR2GRAY)
+        self.prev_gray, self.prev_depth = self.cur_gray, self.cur_depth
+        self.cur_gray, self.cur_depth = gray, depth_arr
+        
+        positions_list = self.get_position_list(self.cur_gray)
+        if (positions_list!=None):
+            avg_x, avg_y, avg_theta = self.avg_positions(positions_list)
             self.prev_x = avg_x
             self.prev_y = avg_y
             self.prev_theta = avg_theta

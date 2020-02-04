@@ -128,7 +128,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
         
     if use_joystick or cfg.USE_JOYSTICK_AS_DEFAULT:
         #modify max_throttle closer to 1.0 to have more power
-        #modify steering_scale lower than 1.0 to have less responsive steering
+        #modify steering_sca----- le lower than 1.0 to have less responsive steering
         from irmark1.parts.controller import get_js_controller
         
         ctr = get_js_controller(cfg)
