@@ -16,7 +16,7 @@ IMAGE_DEPTH = 3         # default RGB=3, make 1 for mono
 CAMERA_FRAMERATE = 60
 HAVE_IMU = True
 DRIVE_LOOP_HZ = 60
-USE_IR = True
+OUTPUT_IR_IMAGE = True
 
 # FOR TRAINING
 DNN_IMAGE_W = 212

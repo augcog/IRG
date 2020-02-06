@@ -144,9 +144,13 @@ class RS_D435i(object):
             return
 
         if self.image_output:
-            color_frame = frames.get_color_frame()
-            depth_frame = frames.get_depth_frame()
-            self.img = np.asanyarray(color_frame.get_data())
+            if not self.use_IR:
+                color_frame = frames.get_color_frame()
+                self.img = np.asanyarray(color_frame.get_data())
+            else:
+                infrared_frame = frames.get_infrared_frame()
+                self.img = np.asanyarray(infrared_frame.get_data())
+            depth_frame = frames.get_depth_frame()          
             self.dimg = np.asanyarray(depth_frame.get_data())
 
         # Fetch IMU frame
@@ -163,7 +167,7 @@ class RS_D435i(object):
             self.poll()
 
     def run_threaded(self):
-        return self.img, self.dimg, self.acl.x, self.acl.y, self.acl.z, self.gyr.x, self.gyr.y, self.gyr.z
+        return self.img, self.dimg, self.use_IR, self.acl.x, self.acl.y, self.acl.z, self.gyr.x, self.gyr.y, self.gyr.z
 
     def run(self):
         self.poll()

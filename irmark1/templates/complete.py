@@ -117,7 +117,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
             cam = MockCamera(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH)
         elif cfg.CAMERA_TYPE == "D435i":
             from irmark1.parts.realsense2 import RS_D435i
-            cam = RS_D435i(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE)
+            cam = RS_D435i(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE, use_IR=cfg.OUTPUT_IR_IMAGE)
         else:
             raise(Exception("Unkown camera type: %s" % cfg.CAMERA_TYPE))
             
@@ -156,7 +156,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
     if  type(cam) == RS_D435i:
         mtx = cam.matrix
         dist_coeffs = cam.distortion_coeffs
-        loc = Localization(mtx, dist_coeffs, "tracks/Track_0.json")
+        loc = Localization(mtx, dist_coeffs, "tracks/Track_0.json", cfg.OUTPUT_QR_IMAGE)
         V.add(loc, inputs=['cam/image_array_a', 'cam/image_array_b'], outputs=['map/x', 'map/y', 'map/theta', 'map/qr_detected'], threaded=True)
         loc_check = LocalizationCheck()
         V.add(loc_check, inputs=['map/x', 'map/y', 'map/theta', 'map/qr_detected'], threaded=True)

@@ -11,7 +11,7 @@ class Localization(object):
     allow for the car to locate its global positioning
     '''
     
-    def __init__(self, camera_matrix, distortion_coeffs, json_in):
+    def __init__(self, camera_matrix, distortion_coeffs, json_in, use_IR=False):
         print("initiated Localization")
 
         self.json_in = json_in
@@ -19,7 +19,7 @@ class Localization(object):
         content = open(self.json_in)
         self.map =  json.loads(content.read())
         self.qr_loc = self.map["QR codes"]
-
+        self.use_IR = use_IR
         #Calibration for Camera Matrix/Distortion Coefficients
         self.camera_matrix = camera_matrix
         self.distortion_coeffs = distortion_coeffs
@@ -116,14 +116,17 @@ class Localization(object):
         start_time = time.time()
         if type(img_arr) == np.ndarray:
             if not img_arr.size:
-                return 0,0,self.mode,self.recording
+                return self.prev_x, self.prev_y, self.prev_theta, False
         else:
-            return 0,0,self.mode,self.recording
+            return self.prev_x, self.prev_y, self.prev_theta, False
         
         #finds all the QR codes seen in the current frame
         img_arr = img_arr.copy()
         valid_ids = False
-        gray = cv2.cvtColor(img_arr, cv2.COLOR_BGR2GRAY)
+        if (not self.use_IR):
+            gray = cv2.cvtColor(img_arr, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img_arr
         self.prev_gray, self.prev_depth = self.cur_gray, self.cur_depth
         self.cur_gray, self.cur_depth = gray, depth_arr
         
