@@ -101,7 +101,7 @@ class RS_D435i(object):
 
         if self.image_output:
             if (self.use_IR):
-                cfg.enable_stream(rs.stream.infrared, image_w. image_h, rs.format.any, framerate)
+                cfg.enable_stream(rs.stream.infrared, image_w, image_h, rs.format.y8, framerate)
             else:
                 cfg.enable_stream(rs.stream.color, image_w, image_h, rs.format.rgb8, framerate) # color camera
             cfg.enable_stream(rs.stream.depth, image_w, image_h, rs.format.z16, framerate) # depth camera

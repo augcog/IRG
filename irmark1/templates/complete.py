@@ -156,7 +156,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
     if  type(cam) == RS_D435i:
         mtx = cam.matrix
         dist_coeffs = cam.distortion_coeffs
-        loc = Localization(mtx, dist_coeffs, "tracks/Track_0.json", cfg.OUTPUT_QR_IMAGE)
+        loc = Localization(mtx, dist_coeffs, "tracks/Track_0.json", cfg.OUTPUT_IR_IMAGE)
         V.add(loc, inputs=['cam/image_array_a', 'cam/image_array_b'], outputs=['map/x', 'map/y', 'map/theta', 'map/qr_detected'], threaded=True)
         loc_check = LocalizationCheck()
         V.add(loc_check, inputs=['map/x', 'map/y', 'map/theta', 'map/qr_detected'], threaded=True)
