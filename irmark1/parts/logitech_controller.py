@@ -33,6 +33,8 @@ class LogitechSteeringWheelController(object):
         self.throttle_scale = kwargs['throttle_scale']
         self.steering_scale = kwargs['steering_scale']
 
+        self.src_addr = addr[0]
+
     def update(self):
         buffer = b''
         while True:

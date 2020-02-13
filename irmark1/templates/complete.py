@@ -58,6 +58,25 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
     #Initialize car
     V = m1.vehicle.Vehicle()
 
+    if use_joystick or cfg.USE_JOYSTICK_AS_DEFAULT:
+        #modify max_throttle closer to 1.0 to have more power
+        #modify steering_scale lower than 1.0 to have less responsive steering
+        from irmark1.parts.controller import get_js_controller
+
+        ctr = get_js_controller(cfg)
+
+        if cfg.USE_NETWORKED_JS:
+            from irmark1.parts.controller import JoyStickSub
+            netwkJs = JoyStickSub(cfg.NETWORK_JS_SERVER_IP)
+            V.add(netwkJs, threaded=True)
+            ctr.js = netwkJs
+
+    else:        
+        #This web controller will create a web server that is capable
+        #of managing steering, throttle, and modes, and more.
+        ctr = LocalWebController()
+
+
     if camera_type == "stereo":
 
         if cfg.CAMERA_TYPE == "WEBCAM":
@@ -74,9 +93,15 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
         elif cfg.CAMERA_TYPE ==  "NANO-MARK1":
             from irmark1.parts.realsense2 import RS_D435i
             from irmark1.parts.camera import CSICamera
+            from irmark1.parts.logitech_controller import LogitechSteeringWheelController
 
-            camA = CSICamera(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE, gstreamer_flip=cfg.CSIC_CAM_GSTREAMER_FLIP_PARM,client_ip=cfg.CLIENT_IP)
-            camB = RS_D435i(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE,client_ip=cfg.CLIENT_IP)
+            if isinstance(ctr, LogitechSteeringWheelController):
+                client_ip = ctr.src_addr
+            else:
+                client_ip = cfg.CLIENT_IP
+
+            camA = CSICamera(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE, gstreamer_flip=cfg.CSIC_CAM_GSTREAMER_FLIP_PARM,client_ip=client_ip)
+            camB = RS_D435i(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE,client_ip=client_ip)
         else:
             raise(Exception("Unsupported camera type: %s" % cfg.CAMERA_TYPE))
 
@@ -137,25 +162,6 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
             from irmark1.parts.image import Duplicator
             V.add(Duplicator(2), inputs=['cam/image_array'], outputs=['cam/image_array_a', 'cam/image_array_b'])
 
-    if use_joystick or cfg.USE_JOYSTICK_AS_DEFAULT:
-        #modify max_throttle closer to 1.0 to have more power
-        #modify steering_scale lower than 1.0 to have less responsive steering
-        from irmark1.parts.controller import get_js_controller
-        
-        ctr = get_js_controller(cfg)
-        
-        if cfg.USE_NETWORKED_JS:
-            from irmark1.parts.controller import JoyStickSub
-            netwkJs = JoyStickSub(cfg.NETWORK_JS_SERVER_IP)
-            V.add(netwkJs, threaded=True)
-            ctr.js = netwkJs
-
-    else:        
-        #This web controller will create a web server that is capable
-        #of managing steering, throttle, and modes, and more.
-        ctr = LocalWebController()
-
-    
     V.add(ctr, 
           inputs=['cam/image_array', 'cam/image_array_a', 'cam/image_array_b'],
           outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
