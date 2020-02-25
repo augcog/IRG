@@ -16,6 +16,7 @@ Options:
 """
 import os 
 import time
+import cv2
 
 from docopt import docopt
 import numpy as np
@@ -117,12 +118,12 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
             cam = MockCamera(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH)
         elif cfg.CAMERA_TYPE == "D435i":
             from irmark1.parts.realsense2 import RS_D435i
-            cam = RS_D435i(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE)
+            cam = RS_D435i(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE, use_IR = cfg.OUTPUT_IR_IMAGE, emitter_value = cfg.EMITTER_VALUE)
         else:
             raise(Exception("Unkown camera type: %s" % cfg.CAMERA_TYPE))
             
         if cfg.CAMERA_TYPE == "D435i":
-            V.add(cam, inputs = inputs, outputs=['cam/image_array_a', 'cam/image_array_b', 'imu/acl_x', 'imu/acl_y', 'imu/acl_z', 'imu/gyr_x', 'imu/gyr_y', 'imu/gyr_z'], threaded = threaded)
+            V.add(cam, inputs = inputs, outputs=['cam/image_array', 'cam/depth_array', 'imu/acl_x', 'imu/acl_y', 'imu/acl_z', 'imu/gyr_x', 'imu/gyr_y', 'imu/gyr_z'], threaded = threaded)
         else:
             V.add(cam, inputs=inputs, outputs=['cam/image_array'], threaded=threaded)
         
@@ -149,17 +150,20 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
         #of managing steering, throttle, and modes, and more.
         ctr = LocalWebController()
     
-    V.add(ctr, inputs=['cam/image_array_a', 'cam/image_array_b'],outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'], threaded=True)
+    if cfg.CAMERA_TYPE == "D435i":
+        V.add(ctr, inputs=['cam/image_array', 'cam/depth_array'],outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'], threaded=True)
+    else:
+        V.add(ctr, inputs=['cam/image_array'], outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'], threaded=True)
 
     #Add localization tracker
     
     if  type(cam) == RS_D435i:
         mtx = cam.matrix
         dist_coeffs = cam.distortion_coeffs
-        loc = Localization(mtx, dist_coeffs, "tracks/Track_0.json")
-        V.add(loc, inputs=['cam/image_array_a', 'cam/image_array_b'], outputs=['map/x', 'map/y', 'map/theta', 'map/qr_detected'], threaded=True)
+        loc = Localization(mtx, dist_coeffs, "tracks/circle.json")
+        V.add(loc, inputs=['cam/image_array', 'cam/depth_array'], outputs=['map/x', 'map/y', 'map/theta', 'map/ar_detected'], threaded=True)
         loc_check = LocalizationCheck()
-        V.add(loc_check, inputs=['map/x', 'map/y', 'map/theta', 'map/qr_detected'], threaded=True)
+        V.add(loc_check, inputs=['map/x', 'map/y', 'map/theta', 'map/ar_detected'], threaded=True)
 
     #this throttle filter will allow one tap back for esc reverse
     th_filter = ThrottleFilter()
@@ -286,6 +290,10 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
             self.cfg = cfg
 
         def run(self, img_arr):
+#            if img_arr.height != self.cfg.DNN_IMAGE_H or img_arr.width != self.cfg.DNN_IMAGE_W:
+            
+            img_arr = cv2.resize(img_arr, (self.cfg.DNN_IMAGE_W, self.cfg.DNN_IMAGE_H))
+            
             return normalize_and_crop(img_arr, self.cfg)
 
     if "coral" in model_type:
@@ -518,7 +526,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
     
     #add tub to save data
     if cfg.CAMERA_TYPE == "D435i":
-        inputs =  ['cam/image_array_a', 'cam/image_array_b', 'user/angle', 'user/throttle', 'user/mode']
+        inputs =  ['cam/image_array', 'cam/depth_array', 'user/angle', 'user/throttle', 'user/mode']
         types=['image_array', 'lossless_image_array', 'float', 'float', 'str']
     else:
         inputs = ['cam/image_array', 'user/angle', 'user/throttle', 'user/mode']

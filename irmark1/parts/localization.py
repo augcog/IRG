@@ -14,11 +14,12 @@ class Localization(object):
     def __init__(self, camera_matrix, distortion_coeffs, json_in):
         print("initiated Localization")
 
-        self.json_in = json_in
+        self.json_in_path = json_in
         print(os.path.abspath(json_in))
-        content = open(self.json_in)
-        self.map =  json.loads(content.read())
-        self.qr_loc = self.map["QR codes"]
+        content = open(self.json_in_path)
+        self.json_in =  json.loads(content.read()) 
+        self.map = self.json_in["Segments"]
+        self.ar_tags = self.json_in["AR tags"]
 
         #Calibration for Camera Matrix/Distortion Coefficients
         self.camera_matrix = camera_matrix
@@ -32,33 +33,28 @@ class Localization(object):
         self.prev_depth=None
         self.cur_depth = None
 
-    def get_global_xy_position(self, qr_id, rel_x, rel_y, angle):
-        qr_loc = self.qr_loc[qr_id]["Location"]
-        line = self.qr_loc[qr_id]["Segment"]
+    def get_global_xy_position(self, ar_id, rel_x, rel_y, angle):
+        curr_ar = 0
+        for i in self.ar_tags:
+            if ar_id == i["Id"]:
+                curr_ar = i
+                break
 
-        segment = self.map["Track"]["Lines"][line]
-        (s_x, s_y) = segment["Start"]
-        (e_x, e_y) = segment["End"]
+        if curr_ar == 0:
+            return False, False, False
 
-        x, y = 0, 0
-        if abs(e_x - s_x) > abs(e_y - s_y):
-            #car is moving in the x direction
-            if s_x < e_x:
-                x = qr_loc[0] - rel_x
-                y = qr_loc[1] - rel_y
-            else: 
-                x = qr_loc[0] + rel_x
-                y = qr_loc[1] - rel_y
-        else: 
-            #car is moving in the y direction
-            if s_y < e_y:
-                x = qr_loc[0] - rel_x
-                y = qr_loc[1] - rel_y
-            else: 
-                x = qr_loc[0] - rel_x
-                y = qr_loc[1] + rel_y
+        ar_loc = curr_ar["Location"] 
+ 
+        offset = 90 #ar tag x,y is actually y,x on track with angle 0
+        yaw = np.deg2rad(ar_loc[2] + offset)
+        cob = np.array([[math.cos(yaw), -math.sin(yaw), 0], [math.sin(yaw), math.cos(yaw), 0], [0,0,1]])
 
-        return x, y
+        curr_loc = np.array([rel_x, rel_y, angle])
+
+        relative_loc = cob.dot(curr_loc)
+        global_loc = ar_loc + relative_loc 
+
+        return global_loc
         
     def angle(self, rvec, tvec):
         # yaw = 0.1*180*math.atan2(tvec[0][0], tvec[0][1])
@@ -90,6 +86,7 @@ class Localization(object):
             for i, val in enumerate(ids):
                 curr_time = time.ctime(time.time())
                 curr_id = val[0]
+                print("curr_id",curr_id)
 
                 rvec = rvecs[i]
                 tvec = tvecs[i]
@@ -99,7 +96,12 @@ class Localization(object):
                 angle = 0.1*180*math.atan2(tvec[0][0], tvec[0][1])
                 rel_x = tvec[0][0]
                 rel_y = tvec[0][2]
-                x,y= self.get_global_xy_position(curr_id, rel_x, rel_y, theta)
+                x,y, theta= self.get_global_xy_position(curr_id, rel_x, rel_y, theta)
+                if x == False and y == False and theta == False:
+                    print("Invalid AR Id")
+                    return None
+
+                xs.append(x)
                 xs.append(x)
                 ys.append(y)
                 thetas.append(theta)
@@ -116,14 +118,17 @@ class Localization(object):
         start_time = time.time()
         if type(img_arr) == np.ndarray:
             if not img_arr.size:
-                return 0,0,self.mode,self.recording
+                return 0,0,0, False
         else:
-            return 0,0,self.mode,self.recording
+            return 0,0,0, False
         
         #finds all the QR codes seen in the current frame
         img_arr = img_arr.copy()
         valid_ids = False
-        gray = cv2.cvtColor(img_arr, cv2.COLOR_BGR2GRAY)
+        if len(img_arr)  == 3:
+            gray = cv2.cvtColor(img_arr, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img_arr
         self.prev_gray, self.prev_depth = self.cur_gray, self.cur_depth
         self.cur_gray, self.cur_depth = gray, depth_arr
         

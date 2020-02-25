@@ -199,7 +199,7 @@ class VideoAPI(tornado.web.RequestHandler):
                 if src == 'a':
                     img = utils.arr_to_binary(self.application.disp_img_arr_a)
                 elif src == 'b':
-                    img = utils.arr_to_binary(self.application.disp_img_arr_b, 16)
+                    img = utils.arr_to_binary(self.application.disp_img_arr_b)
                 else:
                     raise
 
