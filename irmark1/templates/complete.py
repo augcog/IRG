@@ -161,9 +161,9 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
         mtx = cam.matrix
         dist_coeffs = cam.distortion_coeffs
         loc = Localization(mtx, dist_coeffs, "tracks/circle.json")
-        V.add(loc, inputs=['cam/image_array', 'cam/depth_array'], outputs=['map/x', 'map/y', 'map/theta', 'map/ar_detected'], threaded=True)
+        V.add(loc, inputs=['cam/image_array', 'cam/depth_array'], outputs=['map/x', 'map/y', 'map/z', 'map/roll', 'map/pitch', 'map/yaw', 'map/ar_detected'], threaded=True)
         loc_check = LocalizationCheck()
-        V.add(loc_check, inputs=['map/x', 'map/y', 'map/theta', 'map/ar_detected'], threaded=True)
+        V.add(loc_check, inputs=['map/x', 'map/y', 'map/z', 'map/roll', 'map/pitch', 'map/yaw', 'map/ar_detected'], threaded=True)
 
     #this throttle filter will allow one tap back for esc reverse
     th_filter = ThrottleFilter()

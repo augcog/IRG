@@ -13,6 +13,6 @@ class LocalizationCheck(object):
     def update(self):
         pass
 
-    def run_threaded(self, x, y, angle, qr_detected):
-        print("Received: ", x, y, angle, qr_detected, 1/(time.time()-self.prev_time))
+    def run_threaded(self, x, y, z, roll, pitch, yaw, ar_detected):
+        print("Received: ", x, y, z, roll, pitch, yaw, ar_detected, 1/(time.time()-self.prev_time))
         self.prev_time = time.time()
