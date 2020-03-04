@@ -142,27 +142,30 @@ class Localization(object):
         
         positions_list = self.get_position_list(self.cur_gray)
 
-        # ############################
-        # #test keyframe matching
-        # if self.prev_gray is not None and self.cur_gray is not None:
-        #     R, T = self.keyframe_matching()
-        #     print("rotation matrix: ", R)
-        #     print("translation matrix: ", T)
-        #     if R is not None:
-        #         print("determinant: ", np.linalg.det(R))
-        #     # return self.prev_x, self.prev_y, self.prev_theta, False
-        # ###################################
-
         if (positions_list!=None):
             avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw = self.avg_positions(positions_list)
             self.prev_x, self.prev_y, self.prev_z, self.prev_roll, self.prev_pitch, self.prev_yaw = avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw
 
             print("runtime:", time.time()-start_time)
             return avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw, True #Spherical Interp
-        # elif self.prev_x == None:
-        #     return 0, 0, 0, 0,0,0, False
-        # else: #KEYFRAME MATCHING
-        #     return  self.prev_x, self.prev_y, self.prev_z, self.prev_roll, self.prev_pitch, self.prev_yaw, False
+
+     
+        elif self.prev_gray is not None and self.cur_gray is not None: #KEYFRAME MATCHING
+            if self.prev_x is None:
+                return None, None, None, None, None, None, False
+            R, T = self.keyframe_matching()
+            if T is None or R is None:
+                return None, None, None, None, None, None, False
+            T =T/1000
+            prev_pos = np.array([[self.prev_x], [self.prev_y], [self.prev_z]]).reshape(3,1)
+            cur_pos = np.matmul(R, prev_pos) + T
+            eul = cv2.decomposeProjectionMatrix(np.hstack((R, T)))[-1]
+            
+            self.prev_x, self.prev_y, self.prev_z = cur_pos[0, 0], cur_pos[1, 0], cur_pos[2, 0]
+            self.prev_roll += eul[0,0]
+            self.prev_pitch += eul[1,0]
+            self.prev_yaw += eul[2,0]
+            return  self.prev_x, self.prev_y, self.prev_z, self.prev_roll, self.prev_pitch, self.prev_yaw, False
       
             
 
@@ -278,6 +281,7 @@ class Localization(object):
         code is from https://github.com/nghiaho12/rigid_transform_3D/blob/master/rigid_transform_3D.py
         solve the problem RA + t = B
         """
+        
         assert len(A) == len(B)
         num_rows, num_cols = A.shape;
         if num_rows != 3:
@@ -287,15 +291,15 @@ class Localization(object):
             raise Exception("matrix B is not 3xN, it is {}x{}".format(num_rows, num_cols))
 
         # find mean column wise
-        centroid_A = np.mean(A, axis=1).reshape((3, 1))
-        centroid_B = np.mean(B, axis=1).reshape((3, 1))
+        centroid_A = np.mean(A, axis=1)
+        centroid_B = np.mean(B, axis=1)
 
         # subtract mean
-        # Am = A - np.tile(centroid_A, (1, num_cols))
-        # Bm = B - np.tile(centroid_B, (1, num_cols))
-        Am = A - centroid_A
-        Bm = B - centroid_B
-        H = Am @ np.transpose(Bm)
+        Am = A - np.tile(centroid_A, (1, num_cols))
+        Bm = B - np.tile(centroid_B, (1, num_cols))
+        
+        # compute covariance matrix
+        H = Am * np.transpose(Bm)
 
         # find rotation
         U, S, Vt = np.linalg.svd(H)
@@ -307,12 +311,11 @@ class Localization(object):
             Vt[2, :] *= -1
             R = Vt.T * U.T
 
-        # t = -R * centroid_A + centroid_B
-        t = centroid_B - np.matmul(R, centroid_A)
+        t = -R * centroid_A + centroid_B
 
         return R, t
 
-    def estimate_rigid_transformation(self, cur_p3d, prev_p3d, num = 100, delta = 15):
+    def estimate_rigid_transformation(self, cur_p3d, prev_p3d, num = 10, delta = 15):
         """
         find the best R, T between cur_p3d and prev_p3d
         :param cur_p3d: n X 3 matrix of 3d points in the current gray image
@@ -329,8 +332,8 @@ class Localization(object):
         for i in range(num):
             # create 3 random indices of the correspondence points
             idx = np.random.randint(len(cur_p3d), size=3)
-            A = prev_p3d[idx].T 
-            B = cur_p3d[idx].T
+            A = np.mat(prev_p3d[idx].T)
+            B = np.mat(cur_p3d[idx].T)
            
             R, t = self.get_rigid_transformation3d(A, B)
         
