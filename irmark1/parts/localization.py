@@ -332,8 +332,10 @@ class Localization(object):
         for i in range(num):
             # create 3 random indices of the correspondence points
             idx = np.random.randint(len(cur_p3d), size=3)
+
+            # make sure that A, B are wrapped with mat
             A = np.mat(prev_p3d[idx].T)
-            B = np.mat(cur_p3d[idx].T)
+            B = np.mat(cur_p3d[idx].T) 
            
             R, t = self.get_rigid_transformation3d(A, B)
         
