@@ -158,10 +158,15 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
     #Add localization tracker
     
     if  type(cam) == RS_D435i:
+        #Get the camera matrix and distortion coefficients
         mtx = cam.matrix
         dist_coeffs = cam.distortion_coeffs
+
+        #Initialize localization module and add it to the controller
         loc = Localization(mtx, dist_coeffs, "tracks/circle.json")
         V.add(loc, inputs=['cam/image_array', 'cam/depth_array'], outputs=['map/x', 'map/y', 'map/z', 'map/roll', 'map/pitch', 'map/yaw', 'map/ar_detected'], threaded=True)
+        
+        #Initialize localization verification module from vereify.py and add it to the controller
         loc_check = LocalizationCheck()
         V.add(loc_check, inputs=['map/x', 'map/y', 'map/z', 'map/roll', 'map/pitch', 'map/yaw', 'map/ar_detected'], threaded=True)
 

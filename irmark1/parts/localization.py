@@ -14,6 +14,7 @@ class Localization(object):
     def __init__(self, camera_matrix, distortion_coeffs, json_in):
         print("initiated Localization")
 
+        #Parse the json to get the map
         self.json_in_path = json_in
         print(os.path.abspath(json_in))
         content = open(self.json_in_path)
@@ -21,7 +22,7 @@ class Localization(object):
         self.map = self.json_in["Segments"]
         self.ar_tags = self.json_in["AR tags"]
 
-        #Calibration for Camera Matrix/Distortion Coefficients
+        #Set the Camera Matrix/Distortion Coefficients, initiallize other variables
         self.camera_matrix = camera_matrix
         self.distortion_coeffs = distortion_coeffs
         self.aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
@@ -33,7 +34,8 @@ class Localization(object):
         self.prev_depth=None
         self.cur_depth = None
 
-    def get_global_position(self, ar_id, rel_x, rel_y, rel_z, rel_roll, rel_pitch, rel_yaw):
+
+    def get_global_position(self, ar_id, rel_x, rel_y, rel_z, rel_roll, rel_pitch, rel_yaw): #Return global position taking into account relative positive and where ar is on map
         curr_ar = 0
         for i in self.ar_tags:
             if ar_id == i["Id"]:
@@ -45,12 +47,11 @@ class Localization(object):
 
         ar_xyz = curr_ar["Location"][:3]
         ar_rpy = curr_ar["Location"][3:] 
-        #offset = 0 #ar tag x,y is actually y,x on track with angle 0
-        #yaw = np.deg2rad(ar_loc[2] + offset)
-        #roll, pitch, yaw = ar_rpy + [rel_roll, rel_pitch, rel_yaw]
-        #roll, pitch, yaw = rel_roll, rel_pitch, rel_yaw
+
+        #Get roll pitch and yaw in radians
         roll, pitch, yaw = np.deg2rad(ar_rpy[0]), np.deg2rad(ar_rpy[1]), np.deg2rad(ar_rpy[2])
         
+        #Apply rotation matrix and translation vector to get new global xyz and global angle 
         Rz = np.array([[math.cos(yaw), -math.sin(yaw), 0], [math.sin(yaw), math.cos(yaw), 0], [0,0,1]])
         Ry = np.array([[math.cos(pitch), 0, math.sin(pitch)], [0, 1, 0], [-math.sin(pitch),0,math.cos(pitch)]])
         Rx = np.array([[1,0,0], [0, math.cos(roll), -math.sin(roll)], [0,math.sin(roll), math.cos(roll)]])
@@ -61,31 +62,32 @@ class Localization(object):
         global_ang = [rel_roll +ar_rpy[0], rel_pitch + ar_rpy[1], rel_yaw + ar_rpy[2]]
         return list(np.append(global_loc, global_ang))
         
-    def angles(self, rvec, tvec):
-        # yaw = 0.1*180*math.atan2(tvec[0][0], tvec[0][1])
+    def angles(self, rvec, tvec): #Get roll pitch and yaw from rotation vector and translation vector
         rmat = cv2.Rodrigues(rvec)[0]
         P = np.hstack((rmat,tvec.T))
         affine_P = np.insert(P,len(P),np.array([0]*len(P)+[1]),0)
         P = np.linalg.inv(affine_P)
         P = np.delete(P,len(P)-1, 0)
-        pitch, yaw, roll = -cv2.decomposeProjectionMatrix(P)[-1]
+        pitch, yaw, roll = -cv2.decomposeProjectionMatrix(P)[-1] #Use projection matrix to get pitch yaw roll
         pitch_t = np.sign(pitch)*(180-abs(pitch))
         return roll, pitch_t, yaw
 
-    def distance(self,rvec,tvec):
+    def distance(self,rvec,tvec): #Get distance in terms of relative translation (Just an l-2 norm of tvec)
         tvec = tvec[0]
         return math.sqrt(tvec[0]**2 + tvec[2]**2+ tvec[1]**2)
 
     def update(self):
         return
 
-    def get_position_list(self, gray=None):
+    def get_position_list(self, gray=None): #Get list of all global positions based on each ar tag in the frame
         parameters = cv2.aruco.DetectorParameters_create()
         parameters.adaptiveThreshConstant = 10
+        #Detect the ids
         corners, ids, rej = cv2.aruco.detectMarkers(gray, self.aruco_dict, parameters=parameters)
         if np.all(ids!= None):
             valid_ids = True
-            rvecs, tvecs ,_ = aruco.estimatePoseSingleMarkers(corners, 0.2032, self.camera_matrix, self.distortion_coeffs)
+            #Get rvec and tvec of each id relative to detected ar tags
+            rvecs, tvecs ,_ = aruco.estimatePoseSingleMarkers(corners, 0.2032, self.camera_matrix, self.distortion_coeffs) 
 
             xs, ys, zs, rolls, pitchs, yaws, dists = [], [], [], [],[], [], []
             for i, val in enumerate(ids):
@@ -93,12 +95,15 @@ class Localization(object):
                 curr_id = val[0]
                 print("curr_id",curr_id)
 
+                #Get the distances and angles
                 rvec = rvecs[i]
                 tvec = tvecs[i]
                 dist = self.distance(rvec,tvec)
                 roll, pitch, yaw = self.angles(rvec, tvec)
                 
                 #angle = 0.1*180*math.atan2(tvec[0][0], tvec[0][1])
+
+                #Get global position
                 rel_x = tvec[0][0]
                 rel_y = tvec[0][2]
                 rel_z = tvec[0][1]
@@ -107,6 +112,7 @@ class Localization(object):
                     print("Invalid AR Id")
                     return None
 
+                #Add results to list for each coordinate
                 xs.append(x)
                 ys.append(y)
                 zs.append(z)
@@ -115,9 +121,7 @@ class Localization(object):
                 pitchs.append(pitch)
                 dists.append(dist)
 
-            #TODO: If multiple QR codes, take the average relative to distance of those QR codes
-            norm, total_x, total_y, total_theta = 0, 0, 0, 0
-
+            #Format positions list correctly
             positions_list = list(zip(xs, ys, zs, rolls, pitchs, yaws, dists))
             return positions_list
         return None
@@ -130,9 +134,8 @@ class Localization(object):
         else:
             return 0,0,0, False
         
-        #finds all the QR codes seen in the current frame
+        #Copy image then convert it to grayscale
         img_arr = img_arr.copy()
-        valid_ids = False
         if len(img_arr)  == 3:
             gray = cv2.cvtColor(img_arr, cv2.COLOR_BGR2GRAY)
         else:
@@ -140,23 +143,28 @@ class Localization(object):
         self.prev_gray, self.prev_depth = self.cur_gray, self.cur_depth
         self.cur_gray, self.cur_depth = gray, depth_arr
         
+        #Get the position list from the gray scale image, if there are ar tags
         positions_list = self.get_position_list(self.cur_gray)
 
         if (positions_list!=None):
+            #Average out the ar tag positions based on a weighted average
             avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw = self.avg_positions(positions_list)
             self.prev_x, self.prev_y, self.prev_z, self.prev_roll, self.prev_pitch, self.prev_yaw = avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw
 
             print("runtime:", time.time()-start_time)
-            return avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw, True #Spherical Interp
+            return avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw, True 
 
      
         elif self.prev_gray is not None and self.cur_gray is not None: #KEYFRAME MATCHING
             if self.prev_x is None:
                 return None, None, None, None, None, None, False
+            #Run keyframe matching function
             R, T = self.keyframe_matching()
             if T is None or R is None:
                 return None, None, None, None, None, None, False
+            #Normalize millimeters to meters
             T =T/1000
+            #Get new position based on relative position obtained from keyframe R/T
             prev_pos = np.array([[self.prev_x], [self.prev_y], [self.prev_z]]).reshape(3,1)
             cur_pos = np.matmul(R, prev_pos) + T
             eul = cv2.decomposeProjectionMatrix(np.hstack((R, T)))[-1]
@@ -169,12 +177,10 @@ class Localization(object):
       
             
 
-    def avg_positions(self, positions):
+    def avg_positions(self, positions): #Obtain average position based on distance
         norm = 0
-        avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw= 0, 0, 0,0,0,0
-        print(len(positions))
+        avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw= 0, 0, 0, 0, 0, 0
         for x,y,z, roll, pitch, yaw,dist in positions:
-            print(dist)
             avg_x += x/dist
             avg_y += y/dist
             avg_z += z/dist
@@ -182,6 +188,7 @@ class Localization(object):
             avg_pitch += pitch/dist
             avg_yaw += yaw/dist 
             norm += 1/dist
+        #Normalize based on sum of distance inverses and return
         return avg_x/norm, avg_y/norm, avg_z/norm, avg_roll/norm, avg_pitch/norm, avg_yaw/norm
 
     def keyframe_matching(self):

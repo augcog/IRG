@@ -100,6 +100,8 @@ class RS_D435i(object):
         cfg.enable_stream(rs.stream.gyro)
         cfg.enable_stream(rs.stream.accel)
 
+
+        #Enable the appropriate stream based on use_IR if image output is requested
         if self.image_output:
             if (self.use_IR):
                 cfg.enable_stream(rs.stream.infrared, image_w, image_h, rs.format.y8, framerate)
@@ -116,6 +118,7 @@ class RS_D435i(object):
         self.running = True
 
         self.profile = self.pipe.get_active_profile()
+        #Save appropriate camera matrix and distortion coefficients for ir vs color
         if use_IR:
             self.infrared_profile = rs.video_stream_profile(self.profile.get_stream(rs.stream.infrared))
             self.infrared_intrinsics = self.infrared_profile.get_intrinsics()
@@ -148,6 +151,7 @@ class RS_D435i(object):
             logging.error(e)
             return
 
+        # Fetch appropriate image at each possible time and save it.
         if self.image_output:
             if not self.use_IR:
                 color_frame = frames.get_color_frame()
