@@ -35,9 +35,9 @@ class Localization(object):
         self.cur_depth = None
 
         self.fast = cv2.FastFeatureDetector_create()
-        self.star = cv2.xfeatures2d.StarDetector_create()
         self.brief = cv2.xfeatures2d.BriefDescriptorExtractor_create()
         self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+        self.camera_matrix_inv = np.linalg.pinv(self.camera_matrix) 
 
     def get_global_position(self, ar_id, rel_x, rel_y, rel_z, rel_roll, rel_pitch, rel_yaw): #Return global position taking into account relative positive and where ar is on map
         curr_ar = 0
@@ -254,31 +254,16 @@ class Localization(object):
         :param cur_kp: the keypoints in self.cur_gray
         :return: ndarray of points in 3D
         """
-        cur_3d = []
-        prev_3d = []
-        print(len(matches))
-        for match in matches:
-            # x is the column number and y is the row number
-            (x1, y1) = cur_kp[match.queryIdx].pt
-            (x2, y2) = prev_kp[match.trainIdx].pt
+        # keypoints of current image, previous image in homogeneous coordinates  3 x n
+        cur_2d = np.asarray([[cur_kp[match.queryIdx].pt[0], cur_kp[match.queryIdx].pt[1], 1] for match in matches]).T
+        prev_2d =  np.asarray([[prev_kp[match.trainIdx].pt[0], prev_kp[match.trainIdx].pt[1], 1] for match in matches]).T
 
-            cur_3d.append(self.get3D(x1, y1, self.cur_depth))
-            prev_3d.append(self.get3D(x2, y2, self.prev_depth))
+        # get the depth info of each point, n x n
+        current_depth = np.diag(self.cur_depth[cur_2d[1].astype(int), cur_2d[0].astype(int)])
+        previous_depth = np.diag(self.prev_depth[prev_2d[1].astype(int), prev_2d[0].astype(int)])
 
-        return np.asarray(cur_3d), np.asarray(prev_3d)
-
-    def get3D(self, x, y, depth):
-        """
-        compute the 3D point corresponding to (x, y)
-        :param x: x coordinate in 2d
-        :param y: y coordinate in 2d
-        :param depth: depth map for the whole image
-        :return: 3d coordinate
-        """
-        d = depth[int(y), int(x)]
-        x3d = (x - self.camera_matrix[0, 2]) * d / self.camera_matrix[0, 0]
-        y3d = (y - self.camera_matrix[1, 2]) * d / self.camera_matrix[1, 1]
-        return np.array([x3d, y3d, d])
+        return (self.camera_matrix_inv @ (cur_2d) @ current_depth).T, (self.camera_matrix_inv @ (prev_2d) @ previous_depth).T
+  
 
     def get_rigid_transformation3d(self, A, B):
         """
