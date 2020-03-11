@@ -34,6 +34,10 @@ class Localization(object):
         self.prev_depth=None
         self.cur_depth = None
 
+        self.fast = cv2.FastFeatureDetector_create()
+        self.star = cv2.xfeatures2d.StarDetector_create()
+        self.brief = cv2.xfeatures2d.BriefDescriptorExtractor_create()
+        self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
 
     def get_global_position(self, ar_id, rel_x, rel_y, rel_z, rel_roll, rel_pitch, rel_yaw): #Return global position taking into account relative positive and where ar is on map
         curr_ar = 0
@@ -196,19 +200,28 @@ class Localization(object):
         Using keyframe matching to find the transformation between self.prev_gray and self.cur_gray.
         :return: the transformation info, rotation and translation
         """
+        matching_start_time = time.time()
         # using BRIEF to find the feature descriptors
         prev_kp, prev_des, cur_kp, cur_des = self.feature_extraction()
 
+        end_of_feature_extraction = time.time()
         # feature matching using brute-force and hamming distance
         # prev_gray is the train image and cur_gray is the query image
-        matches = self.BFmatching(cur_des, prev_des)
+        matches = self.bf.match(cur_des, prev_des)
 
+        end_of_match = time.time()
         # compute local 3D points
         cur_p3d, prev_p3d = self.compute3D(matches, cur_kp, prev_kp)
 
+        end_of_compute3D = time.time()
         # estimate the rigid transformation
         R, t = self.estimate_rigid_transformation(cur_p3d, prev_p3d)
 
+        end_of_transformation = time.time()
+        print("time for feature extraction: ", end_of_feature_extraction-matching_start_time)
+        print("time for finding matches: ", end_of_match - end_of_feature_extraction)
+        print("time for compute 3D: ", end_of_compute3D - end_of_match)
+        print("time for estimate transformation: ", end_of_transformation - end_of_compute3D)
         return R, t
 
     def feature_extraction(self):
@@ -216,35 +229,22 @@ class Localization(object):
         Extract the features of self.prev_gray and self.cur_gray using CenSurE detector and BRIEF
         :return: key points and descriptors of self.prev_gray and self.cur_gray
         """
-        # Initiate STAR(CenSurE) detector and BRIEF extractor
-        star = cv2.xfeatures2d.StarDetector_create()
-        brief = cv2.xfeatures2d.BriefDescriptorExtractor_create()
 
         # find the keypoints with STAR and descriptors of self.prev_gray
-        kp1 = star.detect(self.prev_gray, None)
-        kp1, des1 = brief.compute(self.prev_gray, kp1)
+        start = time.time()
+        kp1 = self.fast.detect(self.prev_gray, None)
+        end_of_fast = time.time()
+        kp1, des1 = self.brief.compute(self.prev_gray, kp1[:200])
+        end_of_brief = time.time()
+
+        print("time for fast: ", end_of_fast - start)
+        print("time for brief: ", end_of_brief - end_of_fast)
 
         # find the keypoints with STAR and descriptors of self.cur_gray
-        kp2 = star.detect(self.cur_gray, None)
-        kp2, des2 = brief.compute(self.cur_gray, kp2)
+        kp2 = self.fast.detect(self.cur_gray, None)
+        kp2, des2 = self.brief.compute(self.cur_gray, kp2[:200])
 
         return kp1, des1, kp2, des2
-
-    def BFmatching(self, des1, des2):
-        """
-        Matching des1 and des2 using brute-force matching and hamming distance
-        :param des1: query descriptors of self.cur_gray
-        :param des2: train descriptors of self.prev_gray
-        :return: sorted matches between des1 and des2
-        """
-        # print("type of des1:", type(des1))
-        # print(type(des2))
-        # create BFMatcher object
-        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        matches = bf.match(des1, des2)
-
-        # Sort them in the order of their distance.
-        return sorted(matches, key=lambda x: x.distance)
 
     def compute3D(self, matches, cur_kp, prev_kp):
         """
@@ -256,6 +256,7 @@ class Localization(object):
         """
         cur_3d = []
         prev_3d = []
+        print(len(matches))
         for match in matches:
             # x is the column number and y is the row number
             (x1, y1) = cur_kp[match.queryIdx].pt
@@ -322,7 +323,7 @@ class Localization(object):
 
         return R, t
 
-    def estimate_rigid_transformation(self, cur_p3d, prev_p3d, num = 10, delta = 15):
+    def estimate_rigid_transformation(self, cur_p3d, prev_p3d, num = 10, delta = 30):
         """
         find the best R, T between cur_p3d and prev_p3d
         :param cur_p3d: n X 3 matrix of 3d points in the current gray image
@@ -331,11 +332,13 @@ class Localization(object):
         :param delta: bound used to check the quality of transformation
         :return: best rigid transformation R, T
         """
+        print(cur_p3d.shape)
         rotation = None
         translation = None
-        accuracy = 0
         assert len(cur_p3d) == len(prev_p3d)
 
+        accuracy = 0
+        best_inliers = None
         for i in range(num):
             # create 3 random indices of the correspondence points
             idx = np.random.randint(len(cur_p3d), size=3)
@@ -347,12 +350,22 @@ class Localization(object):
             R, t = self.get_rigid_transformation3d(A, B)
         
             error = np.linalg.norm(np.matmul(R, prev_p3d.T) + t - cur_p3d.T, axis = 0)
+            # acc = np.sum(error < delta)
+            # if acc > accuracy:
+            #     accuracy = acc
+            #     rotation = R
+            #     translation = t
+            inliers = error < delta
             acc = np.sum(error < delta)
             if acc > accuracy:
                 accuracy = acc
+                best_inliers = inliers
                 rotation = R
                 translation = t
-            
+
+        idx = np.where(inliers > 0)[0]
+        if len(idx) > 10:
+            rotation, translation = self.get_rigid_transformation3d(np.mat(prev_p3d.T[:, idx]), np.mat(cur_p3d.T[:, idx])) 
         return rotation, translation
 
 
