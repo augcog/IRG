@@ -21,7 +21,8 @@ class Localization(object):
         self.json_in =  json.loads(content.read()) 
         self.map = self.json_in["Segments"]
         self.ar_tags = self.json_in["AR tags"]
-
+        self.ar_configs = {}
+        self.config_AR()
         #Set the Camera Matrix/Distortion Coefficients, initiallize other variables
         self.camera_matrix = camera_matrix
         self.distortion_coeffs = distortion_coeffs
@@ -37,9 +38,24 @@ class Localization(object):
         self.fast = cv2.FastFeatureDetector_create()
         self.brief = cv2.xfeatures2d.BriefDescriptorExtractor_create()
         self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
-        self.camera_matrix_inv = np.linalg.pinv(self.camera_matrix) 
+        self.camera_matrix_inv = np.linalg.pinv(self.camera_matrix)
 
-        self.config = None 
+        self.globalAR2local = np.array([[0, 1, 0, 0], [0, 0, 1, 0], [1, 0, 0, 0], [0, 0, 0, 1]])
+        self.prev_config = None
+
+    def config_AR(self):
+        for i in self.ar_tags:
+            AR_t = i["Location"][:3]
+            ar_rpy = i["Location"][3:] 
+            roll, pitch, yaw = np.deg2rad(ar_rpy[0]), np.deg2rad(ar_rpy[1]), np.deg2rad(ar_rpy[2])
+            Rz = np.array([[math.cos(yaw), -math.sin(yaw), 0], [math.sin(yaw), math.cos(yaw), 0], [0,0,1]])
+            Ry = np.array([[math.cos(pitch), 0, math.sin(pitch)], [0, 1, 0], [-math.sin(pitch),0,math.cos(pitch)]])
+            Rx = np.array([[1,0,0], [0, math.cos(roll), -math.sin(roll)], [0,math.sin(roll), math.cos(roll)]])
+            AR_R = np.dot(Rz, np.dot(Ry, Rx))
+            config = np.hstack((AR_R, np.mat(AR_t).T))
+            config = np.vstack((config, np.mat([0,0,0,1])))
+            self.ar_configs[i["Id"]]= config
+
 
     def get_global_position(self, ar_id, rel_x, rel_y, rel_z, rel_roll, rel_pitch, rel_yaw): #Return global position taking into account relative positive and where ar is on map
         curr_ar = 0
@@ -67,7 +83,9 @@ class Localization(object):
         global_loc =ar_xyz + relative_loc 
         global_ang = [rel_roll +ar_rpy[0], rel_pitch + ar_rpy[1], rel_yaw + ar_rpy[2]]
         return list(np.append(global_loc, global_ang))
-        
+
+
+
     def angles(self, rvec, tvec): #Get roll pitch and yaw from rotation vector and translation vector
         rmat = cv2.Rodrigues(rvec)[0]
         P = np.hstack((rmat,tvec.T))
@@ -96,6 +114,7 @@ class Localization(object):
             rvecs, tvecs ,_ = aruco.estimatePoseSingleMarkers(corners, 0.2032, self.camera_matrix, self.distortion_coeffs) 
 
             xs, ys, zs, rolls, pitchs, yaws, dists = [], [], [], [],[], [], []
+            config_list = []
             for i, val in enumerate(ids):
                 curr_time = time.ctime(time.time())
                 curr_id = val[0]
@@ -104,13 +123,26 @@ class Localization(object):
                 #Get the distances and angles
                 rvec = rvecs[i]
                 tvec = tvecs[i]
+                
+                #rmatrix from rvec
+                rmat = cv2.Rodrigues(rvec)[0]
+                P = np.hstack((rmat,tvec.T))
+                P = np.vstack((P, [0,0,0,1]))
+                Car2ARTag = np.linalg.inv(P)
+                #print("Car2ARTag", Car2ARTag)
+                ARTag2Global = self.ar_configs[curr_id]
+                #print("Global ARTag:", ARTag2Global)
+                print("ar to global: ", np.dot(self.globalAR2local, ARTag2Global))
+                Car2Global = np.dot(ARTag2Global, np.dot(self.globalAR2local, Car2ARTag))
+                config_list.append(Car2Global)
                 dist = self.distance(rvec,tvec)
-                roll, pitch, yaw = self.angles(rvec, tvec)
+                dists.append(dist)
+                #roll, pitch, yaw = self.angles(rvec, tvec)
                 
                 #angle = 0.1*180*math.atan2(tvec[0][0], tvec[0][1])
 
                 #Get global position
-                rel_x = tvec[0][0]
+                '''rel_x = tvec[0][0]
                 rel_y = tvec[0][2]
                 rel_z = tvec[0][1]
                 x,y,z, roll, pitch, yaw= self.get_global_position(curr_id, rel_x, rel_y, rel_z, roll, pitch, yaw)
@@ -125,10 +157,10 @@ class Localization(object):
                 rolls.append(roll)
                 yaws.append(yaw)
                 pitchs.append(pitch)
-                dists.append(dist)
+                dists.append(dist)'''
 
             #Format positions list correctly
-            positions_list = list(zip(xs, ys, zs, rolls, pitchs, yaws, dists))
+            positions_list = list(zip(config_list, dists))
             return positions_list
         return None
 
@@ -154,34 +186,50 @@ class Localization(object):
 
         if (positions_list!=None):
             #Average out the ar tag positions based on a weighted average
-            avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw = self.avg_positions(positions_list)
-            self.prev_x, self.prev_y, self.prev_z, self.prev_roll, self.prev_pitch, self.prev_yaw = avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw
+            self.prev_config = self.avg_RT(positions_list)
+            #self.prev_x, self.prev_y, self.prev_z, self.prev_roll, self.prev_pitch, self.prev_yaw = avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw
 
             print("runtime:", time.time()-start_time)
-            return avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw, True 
+            return self.prev_config, True 
 
      
         elif self.prev_gray is not None and self.cur_gray is not None: #KEYFRAME MATCHING
-            if self.prev_x is None:
-                return None, None, None, None, None, None, False
+            if self.prev_config is None:
+                return None, False
             #Run keyframe matching function
             R, T = self.keyframe_matching()
             if T is None or R is None:
-                return None, None, None, None, None, None, False
+                return None, False
             #Normalize millimeters to meters
             T =T/1000
-            #Get new position based on relative position obtained from keyframe R/T
-            prev_pos = np.array([[self.prev_x], [self.prev_y], [self.prev_z]]).reshape(3,1)
-            cur_pos = np.matmul(R, prev_pos) + T
-            eul = cv2.decomposeProjectionMatrix(np.hstack((R, T)))[-1]
+            g = np.hstack((R, T))
+            g = np.vstack((g, [0, 0, 0, 1]))
+            self.prev_config = np.dot(g, self.prev_config)
+            return self.prev_config,False
+            # #Get new position based on relative position obtained from keyframe R/T
+            # prev_pos = np.array([[self.prev_x], [self.prev_y], [self.prev_z]]).reshape(3,1)
+            # cur_pos = np.matmul(R, prev_pos) + T
+            # eul = cv2.decomposeProjectionMatrix(np.hstack((R, T)))[-1]
             
-            self.prev_x, self.prev_y, self.prev_z = cur_pos[0, 0], cur_pos[1, 0], cur_pos[2, 0]
-            self.prev_roll += eul[0,0]
-            self.prev_pitch += eul[1,0]
-            self.prev_yaw += eul[2,0]
-            return  self.prev_x, self.prev_y, self.prev_z, self.prev_roll, self.prev_pitch, self.prev_yaw, False
-      
-            
+            # self.prev_x, self.prev_y, self.prev_z = cur_pos[0, 0], cur_pos[1, 0], cur_pos[2, 0]
+            # self.prev_roll += eul[0,0]
+            # self.prev_pitch += eul[1,0]
+            # self.prev_yaw += eul[2,0]
+            # return  self.prev_x, self.prev_y, self.prev_z, self.prev_roll, self.prev_pitch, self.prev_yaw, False
+
+        return None, False
+
+    def avg_RT(self, positions):
+        #For now, return the closest one
+        # TODO: Actual weight avg of config matrices
+        print(positions)
+        minind = 0
+        mindist = float('inf')
+        for i, val in enumerate(positions):
+            if val[1] < mindist:
+                minind = i
+                mindist= val[1]
+        return positions[minind][0]  
 
     def avg_positions(self, positions): #Obtain average position based on distance
         norm = 0
@@ -202,28 +250,28 @@ class Localization(object):
         Using keyframe matching to find the transformation between self.prev_gray and self.cur_gray.
         :return: the transformation info, rotation and translation
         """
-        matching_start_time = time.time()
+        # matching_start_time = time.time()
         # using BRIEF to find the feature descriptors
         prev_kp, prev_des, cur_kp, cur_des = self.feature_extraction()
 
-        end_of_feature_extraction = time.time()
+        # end_of_feature_extraction = time.time()
         # feature matching using brute-force and hamming distance
         # prev_gray is the train image and cur_gray is the query image
         matches = self.bf.match(cur_des, prev_des)
 
-        end_of_match = time.time()
+        # end_of_match = time.time()s
         # compute local 3D points
         cur_p3d, prev_p3d = self.compute3D(matches, cur_kp, prev_kp)
 
-        end_of_compute3D = time.time()
+        # end_of_compute3D = time.time()
         # estimate the rigid transformation
         R, t = self.estimate_rigid_transformation(cur_p3d, prev_p3d)
 
-        end_of_transformation = time.time()
-        print("time for feature extraction: ", end_of_feature_extraction-matching_start_time)
-        print("time for finding matches: ", end_of_match - end_of_feature_extraction)
-        print("time for compute 3D: ", end_of_compute3D - end_of_match)
-        print("time for estimate transformation: ", end_of_transformation - end_of_compute3D)
+        # end_of_transformation = time.time()
+        # print("time for feature extraction: ", end_of_feature_extraction-matching_start_time)
+        # print("time for finding matches: ", end_of_match - end_of_feature_extraction)
+        # print("time for compute 3D: ", end_of_compute3D - end_of_match)
+        # print("time for estimate transformation: ", end_of_transformation - end_of_compute3D)
         return R, t
 
     def feature_extraction(self):

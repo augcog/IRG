@@ -164,11 +164,11 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None, camera_type
 
         #Initialize localization module and add it to the controller
         loc = Localization(mtx, dist_coeffs, "tracks/circle.json")
-        V.add(loc, inputs=['cam/image_array', 'cam/depth_array'], outputs=['map/x', 'map/y', 'map/z', 'map/roll', 'map/pitch', 'map/yaw', 'map/ar_detected'], threaded=True)
+        V.add(loc, inputs=['cam/image_array', 'cam/depth_array'], outputs=['map/config', 'map/ar_detected'], threaded=True)
         
         #Initialize localization verification module from vereify.py and add it to the controller
         loc_check = LocalizationCheck()
-        V.add(loc_check, inputs=['map/x', 'map/y', 'map/z', 'map/roll', 'map/pitch', 'map/yaw', 'map/ar_detected'], threaded=True)
+        V.add(loc_check, inputs=['map/config', 'map/ar_detected'], threaded=True)
 
     #this throttle filter will allow one tap back for esc reverse
     th_filter = ThrottleFilter()
