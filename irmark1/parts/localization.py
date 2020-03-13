@@ -39,6 +39,8 @@ class Localization(object):
         self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
         self.camera_matrix_inv = np.linalg.pinv(self.camera_matrix) 
 
+        self.config = None 
+
     def get_global_position(self, ar_id, rel_x, rel_y, rel_z, rel_roll, rel_pitch, rel_yaw): #Return global position taking into account relative positive and where ar is on map
         curr_ar = 0
         for i in self.ar_tags:
@@ -231,14 +233,8 @@ class Localization(object):
         """
 
         # find the keypoints with STAR and descriptors of self.prev_gray
-        start = time.time()
         kp1 = self.fast.detect(self.prev_gray, None)
-        end_of_fast = time.time()
         kp1, des1 = self.brief.compute(self.prev_gray, kp1[:200])
-        end_of_brief = time.time()
-
-        print("time for fast: ", end_of_fast - start)
-        print("time for brief: ", end_of_brief - end_of_fast)
 
         # find the keypoints with STAR and descriptors of self.cur_gray
         kp2 = self.fast.detect(self.cur_gray, None)
@@ -276,10 +272,10 @@ class Localization(object):
         """
         
         assert len(A) == len(B)
-        num_rows, num_cols = A.shape;
+        num_rows, num_cols = A.shape
         if num_rows != 3:
             raise Exception("matrix A is not 3xN, it is {}x{}".format(num_rows, num_cols))
-        [num_rows, num_cols] = B.shape;
+        [num_rows, num_cols] = B.shape
         if num_rows != 3:
             raise Exception("matrix B is not 3xN, it is {}x{}".format(num_rows, num_cols))
 
@@ -314,10 +310,10 @@ class Localization(object):
         :param cur_p3d: n X 3 matrix of 3d points in the current gray image
         :param prev_p3d: n X 3 matrix of 3d points in the previous gray image
         :param num: max number of iterations
-        :param delta: bound used to check the quality of transformation
+        :param delta: bound used to check the quality of tr 1.2136699621386489 0.04711350539011934 -0.006308977977385298 90.86997690240811 -1.730891902976909 93.19318454406879 False 18.ansformation
         :return: best rigid transformation R, T
         """
-        print(cur_p3d.shape)
+
         rotation = None
         translation = None
         assert len(cur_p3d) == len(prev_p3d)
@@ -332,25 +328,23 @@ class Localization(object):
             A = np.mat(prev_p3d[idx].T)
             B = np.mat(cur_p3d[idx].T) 
            
-            R, t = self.get_rigid_transformation3d(A, B)
-        
+            R, t = self.get_rigid_transformation3d(A, B)        
             error = np.linalg.norm(np.matmul(R, prev_p3d.T) + t - cur_p3d.T, axis = 0)
-            # acc = np.sum(error < delta)
-            # if acc > accuracy:
-            #     accuracy = acc
-            #     rotation = R
-            #     translation = t
+
             inliers = error < delta
-            acc = np.sum(error < delta)
-            if acc > accuracy:
+            acc = np.sum(inliers)
+    
+            if acc > accuracy and acc >= 10:
                 accuracy = acc
                 best_inliers = inliers
                 rotation = R
                 translation = t
-
-        idx = np.where(inliers > 0)[0]
-        if len(idx) > 10:
-            rotation, translation = self.get_rigid_transformation3d(np.mat(prev_p3d.T[:, idx]), np.mat(cur_p3d.T[:, idx])) 
+      
+        if best_inliers is not None:
+            idx = np.where(best_inliers > 0)[0]
+            print("number of inliers: ", len(idx))
+            rotation, translation = self.get_rigid_transformation3d(np.mat(prev_p3d.T[:, idx]), np.mat(cur_p3d.T[:, idx]))
+ 
         return rotation, translation
 
 
