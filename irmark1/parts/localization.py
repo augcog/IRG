@@ -5,6 +5,8 @@ import os
 from cv2 import aruco
 import numpy as np
 import cv2
+from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Slerp
 
 class Localization(object):
     '''
@@ -22,7 +24,7 @@ class Localization(object):
         self.map = self.json_in["Segments"]
         self.ar_tags = self.json_in["AR tags"]
         self.ar_configs = {}
-        self.config_AR()
+        
         #Set the Camera Matrix/Distortion Coefficients, initiallize other variables
         self.camera_matrix = camera_matrix
         self.distortion_coeffs = distortion_coeffs
@@ -40,19 +42,29 @@ class Localization(object):
         self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
         self.camera_matrix_inv = np.linalg.pinv(self.camera_matrix)
 
-        self.globalAR2local = np.array([[0, 1, 0, 0], [0, 0, 1, 0], [1, 0, 0, 0], [0, 0, 0, 1]])
+        self.ARglobal2local = np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0]])
         self.prev_config = None
+        self.config_AR()
 
     def config_AR(self):
+        """
+        compute the configuration of the local coordinates of ar tags with respect to world frame
+        """
         for i in self.ar_tags:
-            AR_t = i["Location"][:3]
+            t = i["Location"][:3]
             ar_rpy = i["Location"][3:] 
             roll, pitch, yaw = np.deg2rad(ar_rpy[0]), np.deg2rad(ar_rpy[1]), np.deg2rad(ar_rpy[2])
             Rz = np.array([[math.cos(yaw), -math.sin(yaw), 0], [math.sin(yaw), math.cos(yaw), 0], [0,0,1]])
             Ry = np.array([[math.cos(pitch), 0, math.sin(pitch)], [0, 1, 0], [-math.sin(pitch),0,math.cos(pitch)]])
             Rx = np.array([[1,0,0], [0, math.cos(roll), -math.sin(roll)], [0,math.sin(roll), math.cos(roll)]])
-            AR_R = np.dot(Rz, np.dot(Ry, Rx))
-            config = np.hstack((AR_R, np.mat(AR_t).T))
+            
+            R = np.dot(Rz, np.dot(Ry, Rx))
+            R = np.dot(R, self.ARglobal2local)
+
+            # Do rotation first, then translation. after rotation, the coordinates of translation changed.
+            t = np.dot(R.T, np.mat(t).T)
+
+            config = np.hstack((R, t))
             config = np.vstack((config, np.mat([0,0,0,1])))
             self.ar_configs[i["Id"]]= config
 
@@ -128,13 +140,19 @@ class Localization(object):
                 rmat = cv2.Rodrigues(rvec)[0]
                 P = np.hstack((rmat,tvec.T))
                 P = np.vstack((P, [0,0,0,1]))
-                Car2ARTag = np.linalg.inv(P)
-                #print("Car2ARTag", Car2ARTag)
-                ARTag2Global = self.ar_configs[curr_id]
-                #print("Global ARTag:", ARTag2Global)
-                print("ar to global: ", np.dot(self.globalAR2local, ARTag2Global))
-                Car2Global = np.dot(ARTag2Global, np.dot(self.globalAR2local, Car2ARTag))
-                config_list.append(Car2Global)
+                ARlocal2Car = np.linalg.inv(P)
+
+                World2ARlocal = self.ar_configs[curr_id]
+                World2Car = np.dot(ARlocal2Car, World2ARlocal)
+
+                print("from world to ar local: ", World2ARlocal)
+                print("from ar local to world: ", np.linalg.inv(World2ARlocal))
+               
+                Car2World = np.linalg.inv(World2Car)
+                print("car to world: ", Car2World)
+                 
+               
+                config_list.append(Car2World)
                 dist = self.distance(rvec,tvec)
                 dists.append(dist)
                 #roll, pitch, yaw = self.angles(rvec, tvec)
@@ -186,7 +204,7 @@ class Localization(object):
 
         if (positions_list!=None):
             #Average out the ar tag positions based on a weighted average
-            self.prev_config = self.avg_RT(positions_list)
+            self.prev_config = np.array(self.avg_RT(positions_list))
             #self.prev_x, self.prev_y, self.prev_z, self.prev_roll, self.prev_pitch, self.prev_yaw = avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw
 
             print("runtime:", time.time()-start_time)
@@ -220,16 +238,32 @@ class Localization(object):
         return None, False
 
     def avg_RT(self, positions):
-        #For now, return the closest one
-        # TODO: Actual weight avg of config matrices
-        print(positions)
-        minind = 0
-        mindist = float('inf')
-        for i, val in enumerate(positions):
-            if val[1] < mindist:
-                minind = i
-                mindist= val[1]
-        return positions[minind][0]  
+        #Return weighted average of config matrices
+        if (not positions):
+            return positions
+        if (len(positions) == 1):
+            return positions[0][0]
+        #Initialize weights = 1/distance for the interpolation
+        lastWeight = 1/positions[0][1]
+        lastR = positions[0][0][0:3, 0:3]
+        lastT = positions[0][0][0:3, 3]
+
+        #Iteratively recompute weighted average
+        for i in range(1, len(positions)):
+            newWeight = 1/ positions[i][1]
+            newT = positions[i][0][0:3, 3]
+            newR = positions[i][0][0:3, 0:3]
+            #Linearly interpolate on T
+            lastT = (lastWeight*lastT +newWeight*newT)/(lastWeight+newWeight)
+            #Spherical interpolation on R
+            inp = R.from_matrix(np.array([lastR, newR]))
+            slerp = Slerp([0,1], inp)       
+            lastR = slerp([(newWeight)/(lastWeight+newWeight)]).as_matrix()[0]
+            #Change weight
+            lastWeight += newWeight
+        tmp = np.hstack((lastR, lastT))
+        ret = np.vstack((tmp, [0,0,0,1]))
+        return ret
 
     def avg_positions(self, positions): #Obtain average position based on distance
         norm = 0
