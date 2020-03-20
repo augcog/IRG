@@ -14,37 +14,34 @@ class Localization(object):
     '''
 
     def __init__(self, camera_matrix, distortion_coeffs, json_in):
-        print("initiated Localization")
 
-        #Parse the json to get the map
+        # Parse the json to get the map
         self.json_in_path = json_in
-        print(os.path.abspath(json_in))
         content = open(self.json_in_path)
         self.json_in =  json.loads(content.read())
         self.map = self.json_in["Segments"]
         self.ar_tags = self.json_in["AR tags"]
         self.ar_configs = {}
 
-        #Set the Camera Matrix/Distortion Coefficients, initiallize other variables
+        # Set the Camera Matrix/Distortion Coefficients, initiallize other variables
         self.camera_matrix = camera_matrix
+        self.camera_matrix_inv = np.linalg.pinv(self.camera_matrix)
         self.distortion_coeffs = distortion_coeffs
         self.aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
-        self.prev_x = None
-        self.prev_y= None
-        self.prev_theta=None
+    
+        # Store the latest useful graysacle image and depth information
         self.prev_gray=None
-        self.cur_gray=None
         self.prev_depth=None
-        self.cur_depth = None
 
+        # objects used for keyframe matching
         self.fast = cv2.FastFeatureDetector_create()
         self.brief = cv2.xfeatures2d.BriefDescriptorExtractor_create()
         self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
-        self.camera_matrix_inv = np.linalg.pinv(self.camera_matrix)
 
         self.ARglobal2local = np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0]])
         self.prev_config = None
         self.config_AR()
+
 
     def config_AR(self):
         """
@@ -71,84 +68,59 @@ class Localization(object):
             self.ar_configs[i["Id"]]= config
 
 
-    def get_global_position(self, ar_id, rel_x, rel_y, rel_z, rel_roll, rel_pitch, rel_yaw): #Return global position taking into account relative positive and where ar is on map
-        curr_ar = 0
-        for i in self.ar_tags:
-            if ar_id == i["Id"]:
-                curr_ar = i
-                break
+    def get_global_position(self):
+        """
+        Compute the location of the car in the global frame
+        :return: a array of (x, y, z, roll, pitch, yaw)
+        """
+        if self.prev_config is None:
+            return None
 
-        if curr_ar == 0:
-            return False, False, False
+        roll, pitch, yaw = cv2.decomposeProjectionMatrix(self.prev_config[:3])[-1].reshape((3, ))
+        x, y, z = self.prev_config[:3, 3]
+        return np.array([x, y, z, roll, pitch, yaw])
 
-        ar_xyz = curr_ar["Location"][:3]
-        ar_rpy = curr_ar["Location"][3:]
-
-        #Get roll pitch and yaw in radians
-        roll, pitch, yaw = np.deg2rad(ar_rpy[0]), np.deg2rad(ar_rpy[1]), np.deg2rad(ar_rpy[2])
-
-        #Apply rotation matrix and translation vector to get new global xyz and global angle
-        Rz = np.array([[math.cos(yaw), -math.sin(yaw), 0], [math.sin(yaw), math.cos(yaw), 0], [0,0,1]])
-        Ry = np.array([[math.cos(pitch), 0, math.sin(pitch)], [0, 1, 0], [-math.sin(pitch),0,math.cos(pitch)]])
-        Rx = np.array([[1,0,0], [0, math.cos(roll), -math.sin(roll)], [0,math.sin(roll), math.cos(roll)]])
-        curr_loc = np.array([rel_x, rel_y, rel_z])
-        relative_loc = np.dot(Rz, np.dot(Ry, np.dot(Rx, curr_loc)))
-        #relative_loc = cob.dot(curr_loc)
-        global_loc =ar_xyz + relative_loc
-        global_ang = [rel_roll +ar_rpy[0], rel_pitch + ar_rpy[1], rel_yaw + ar_rpy[2]]
-        return list(np.append(global_loc, global_ang))
-
-
-
-    def angles(self, rvec, tvec): #Get roll pitch and yaw from rotation vector and translation vector
-        rmat = cv2.Rodrigues(rvec)[0]
-        P = np.hstack((rmat,tvec.T))
-        affine_P = np.insert(P,len(P),np.array([0]*len(P)+[1]),0)
-        P = np.linalg.inv(affine_P)
-        P = np.delete(P,len(P)-1, 0)
-        pitch, yaw, roll = -cv2.decomposeProjectionMatrix(P)[-1] #Use projection matrix to get pitch yaw roll
-        pitch_t = np.sign(pitch)*(180-abs(pitch))
-        return roll, pitch_t, yaw
-
-    def distance(self,rvec,tvec): #Get distance in terms of relative translation (Just an l-2 norm of tvec)
-        tvec = tvec[0]
-        return math.sqrt(tvec[0]**2 + tvec[2]**2+ tvec[1]**2)
 
     def update(self):
         return
 
+
     def get_position_list(self, gray=None): #Get list of all global positions based on each ar tag in the frame
+        """
+        Compute a list of positions based on ar tags seen in the frame
+        :param gray: the input image
+        :return a list of [config matrix, dist]
+        """
         parameters = cv2.aruco.DetectorParameters_create()
         parameters.adaptiveThreshConstant = 10
-        #Detect the ids
+        # Detect the ids
         corners, ids, rej = cv2.aruco.detectMarkers(gray, self.aruco_dict, parameters=parameters)
         if np.all(ids!= None):
             valid_ids = True
-            #Get rvec and tvec of each id relative to detected ar tags
+            # Get rvec and tvec of each id relative to detected ar tags
             rvecs, tvecs ,_ = aruco.estimatePoseSingleMarkers(corners, 0.2032, self.camera_matrix, self.distortion_coeffs)
 
-            xs, ys, zs, rolls, pitchs, yaws, dists = [], [], [], [],[], [], []
-            config_list = []
+            config_list, dists = [], []
             for i, val in enumerate(ids):
                 curr_time = time.ctime(time.time())
                 curr_id = val[0]
-                print("curr_id",curr_id)
-
-                #Get the distances and angles
+                
+                # Get the distances and angles
                 rvec = rvecs[i]
                 tvec = tvecs[i]
 
-                #rmatrix from rvec
+                # Compute the car's position relative to ar tag viewed in ar tag's local coordinates
                 rmat = cv2.Rodrigues(rvec)[0]
                 P = np.hstack((rmat,tvec.T))
                 P = np.vstack((P, [0,0,0,1]))
                 ARlocal2Car = np.linalg.inv(P)
 
+                # Compute the car's position viewed in the world frame
                 World2ARlocal = self.ar_configs[curr_id]
                 World2Car = np.dot(World2ARlocal, ARlocal2Car)
 
                 config_list.append(World2Car)
-                dist = self.distance(rvec,tvec)
+                dist = np.linalg.norm(tvec)
                 dists.append(dist)
 
             #Format positions list correctly
@@ -156,13 +128,16 @@ class Localization(object):
             return positions_list
         return None
 
+
     def run_threaded(self, img_arr=None, depth_arr=None):
-        start_time = time.time()
+        """
+        Compute the configuration of the car
+        """
         if type(img_arr) == np.ndarray:
             if not img_arr.size:
-                return 0,0,0, False
+                return None, False
         else:
-            return 0,0,0, False
+            return None, False
 
         #Copy image then convert it to grayscale
         img_arr = img_arr.copy()
@@ -171,87 +146,72 @@ class Localization(object):
         else:
             gray = img_arr
 
-        if self.cur_gray is not None:
-            self.prev_gray, self.prev_depth = self.cur_gray, self.cur_depth
-
-        # self.cur_gray, self.cur_depth = gray, depth_arr
-
-        #Get the position list from the gray scale image, if there are ar tags
-        # positions_list = self.get_position_list(self.cur_gray)
+        # Get the position list from the gray scale image, if there are ar tags
         positions_list = self.get_position_list(gray)
 
         if (positions_list!=None):
             #Average out the ar tag positions based on a weighted average
             self.prev_config = np.array(self.avg_RT(positions_list))
-            #self.prev_x, self.prev_y, self.prev_z, self.prev_roll, self.prev_pitch, self.prev_yaw = avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw
-
-            print("runtime:", time.time()-start_time)
-            self.cur_gray, self.cur_depth = gray, depth_arr
-
+            self.prev_gray, self.prev_depth = gray, depth_arr
             return self.prev_config, True
-
 
         elif self.prev_gray is not None: # KEYFRAME MATCHING
             if self.prev_config is None:
                 return None, False
-            #Run keyframe matching function
+
             R, T = self.keyframe_matching(gray, depth_arr)
             if T is None or R is None:
-                self.cur_gray, self.cur_depth = None, None
+                # self.cur_gray, self.cur_depth = None, None
                 return None, False
-            #Normalize millimeters to meters
-            T =T/1000
+            
+            T =T/1000  # Normalize millimeters to meters
             g = np.hstack((R, T))
             g = np.vstack((g, [0, 0, 0, 1]))
 
             self.prev_config = np.dot(self.prev_config, g)
-            self.cur_gray, self.cur_depth = gray, depth_arr
-
+            self.prev_gray, self.prev_depth = gray, depth_arr
             return self.prev_config,False
 
         return None, False
 
+
     def avg_RT(self, positions):
-        #Return weighted average of config matrices
+        """
+        Compute the weighted average of config metrices, using linear interpolation on T 
+        and spherical interpolation on R
+        :param positions: a list of [config matrix, dist]
+        :return: the weighted average
+        """
         if (not positions):
             return positions
         if (len(positions) == 1):
             return positions[0][0]
-        #Initialize weights = 1/distance for the interpolation
+
+        # Initialize weights = 1/distance for the interpolation
         lastWeight = 1/positions[0][1]
         lastR = positions[0][0][0:3, 0:3]
         lastT = positions[0][0][0:3, 3]
 
-        #Iteratively recompute weighted average
+        # Iteratively recompute weighted average
         for i in range(1, len(positions)):
             newWeight = 1/ positions[i][1]
             newT = positions[i][0][0:3, 3]
             newR = positions[i][0][0:3, 0:3]
-            #Linearly interpolate on T
+
+            # Linearly interpolate on T
             lastT = (lastWeight*lastT +newWeight*newT)/(lastWeight+newWeight)
-            #Spherical interpolation on R
+
+            # Spherical interpolation on R
             inp = R.from_matrix(np.array([lastR, newR]))
             slerp = Slerp([0,1], inp)
             lastR = slerp([(newWeight)/(lastWeight+newWeight)]).as_matrix()[0]
-            #Change weight
+
+            # Change weight
             lastWeight += newWeight
         tmp = np.hstack((lastR, lastT))
         ret = np.vstack((tmp, [0,0,0,1]))
         return ret
 
-    def avg_positions(self, positions): #Obtain average position based on distance
-        norm = 0
-        avg_x, avg_y, avg_z, avg_roll, avg_pitch, avg_yaw= 0, 0, 0, 0, 0, 0
-        for x,y,z, roll, pitch, yaw,dist in positions:
-            avg_x += x/dist
-            avg_y += y/dist
-            avg_z += z/dist
-            avg_roll += roll/dist
-            avg_pitch += pitch/dist
-            avg_yaw += yaw/dist
-            norm += 1/dist
-        #Normalize based on sum of distance inverses and return
-        return avg_x/norm, avg_y/norm, avg_z/norm, avg_roll/norm, avg_pitch/norm, avg_yaw/norm
 
     def keyframe_matching(self, cur_gray, cur_depth):
         """
@@ -260,7 +220,7 @@ class Localization(object):
         :param cur_depth: the input depth information
         :return: the transformation info, rotation and translation
         """
-        # using BRIEF to find the feature descriptors
+        # find the feature descriptors and keypoints 
         prev_kp, prev_des, cur_kp, cur_des = self.feature_extraction(cur_gray)
 
         # feature matching using brute-force and hamming distance
@@ -274,6 +234,7 @@ class Localization(object):
         R, t = self.estimate_rigid_transformation(cur_p3d, prev_p3d)
 
         return R, t
+
 
     def feature_extraction(self, cur_gray):
         """
@@ -291,6 +252,7 @@ class Localization(object):
         kp2, des2 = self.brief.compute(cur_gray, kp2[:200])
 
         return kp1, des1, kp2, des2
+
 
     def compute3D(self, matches, cur_kp, prev_kp, cur_depth):
         """
@@ -345,15 +307,15 @@ class Localization(object):
         U, S, Vt = np.linalg.svd(H)
         R = Vt.T * U.T
 
-        # special reflection case
+        # special reflection case, when the determinant is -1
         if np.linalg.det(R) < 0:
-            # print("det(R) < R, reflection detected!, correcting for it ...\n");
             Vt[2, :] *= -1
             R = Vt.T * U.T
 
         t = -R * centroid_A + centroid_B
 
         return R, t
+
 
     def estimate_rigid_transformation(self, cur_p3d, prev_p3d, num = 10, delta = 30, inlier_bound = 10):
         """
