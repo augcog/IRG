@@ -49,21 +49,23 @@ class Localization(object):
     def config_AR(self):
         """
         compute the configuration of the local coordinates of ar tags with respect to world frame
+        :return: a dictionary of (ar_id, config)
         """
         for i in self.ar_tags:
             t = i["Location"][:3]
             ar_rpy = i["Location"][3:]
+
+            # compute the rotation matrix, assuming extrinsic rotations
             roll, pitch, yaw = np.deg2rad(ar_rpy[0]), np.deg2rad(ar_rpy[1]), np.deg2rad(ar_rpy[2])
             Rz = np.array([[math.cos(yaw), -math.sin(yaw), 0], [math.sin(yaw), math.cos(yaw), 0], [0,0,1]])
             Ry = np.array([[math.cos(pitch), 0, math.sin(pitch)], [0, 1, 0], [-math.sin(pitch),0,math.cos(pitch)]])
             Rx = np.array([[1,0,0], [0, math.cos(roll), -math.sin(roll)], [0,math.sin(roll), math.cos(roll)]])
-
             R = np.dot(Rz, np.dot(Ry, Rx))
+
+            # change to ar tag's local coordinates
             R = np.dot(R, self.ARglobal2local)
 
-            # Do rotation first, then translation. after rotation, the coordinates of translation changed.
             t = np.mat(t).T
-
             config = np.hstack((R, t))
             config = np.vstack((config, np.mat([0,0,0,1])))
             self.ar_configs[i["Id"]]= config
@@ -189,7 +191,7 @@ class Localization(object):
             return self.prev_config, True
 
 
-        elif self.prev_gray is not None: #KEYFRAME MATCHING
+        elif self.prev_gray is not None: # KEYFRAME MATCHING
             if self.prev_config is None:
                 return None, False
             #Run keyframe matching function
@@ -254,6 +256,8 @@ class Localization(object):
     def keyframe_matching(self, cur_gray, cur_depth):
         """
         Using keyframe matching to find the transformation between self.prev_gray and self.cur_gray.
+        :param cur_gray: the input grayscale image
+        :param cur_depth: the input depth information
         :return: the transformation info, rotation and translation
         """
         # using BRIEF to find the feature descriptors
@@ -274,14 +278,15 @@ class Localization(object):
     def feature_extraction(self, cur_gray):
         """
         Extract the features of self.prev_gray and cur_gray using FAST detector and BRIEF
+        :param cur_gray: the input grayscale image
         :return: key points and descriptors of self.prev_gray and cur_gray
         """
 
-        # find the keypoints with STAR and descriptors of self.prev_gray
+        # find the keypoints with FAST and descriptors of self.prev_gray
         kp1 = self.fast.detect(self.prev_gray, None)
         kp1, des1 = self.brief.compute(self.prev_gray, kp1[:200])
 
-        # find the keypoints with STAR and descriptors of self.cur_gray
+        # find the keypoints with FAST and descriptors of cur_gray
         kp2 = self.fast.detect(cur_gray, None)
         kp2, des2 = self.brief.compute(cur_gray, kp2[:200])
 
@@ -292,7 +297,8 @@ class Localization(object):
         compute the local 3d points
         :param matches: the feature matched using BFmatching
         :param prev_kp: the keypoints in self.prev_gray
-        :param cur_kp: the keypoints in self.cur_gray
+        :param cur_kp: the keypoints in the input grayscale image
+        :param cur_depth: the depth information of the input image
         :return: ndarray of points in 3D
         """
         # keypoints of current image, previous image in homogeneous coordinates  3 x n
@@ -383,8 +389,6 @@ class Localization(object):
             if acc > accuracy and acc >= inlier_bound:
                 accuracy = acc
                 best_inliers = inliers
-                rotation = R
-                translation = t
 
         if best_inliers is None:
             return None, None
