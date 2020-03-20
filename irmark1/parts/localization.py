@@ -202,7 +202,7 @@ class Localization(object):
             g = np.hstack((R, T))
             g = np.vstack((g, [0, 0, 0, 1]))
 
-            self.prev_config = np.dot(g, self.prev_config)
+            self.prev_config = np.dot(self.prev_config, g)
             self.cur_gray, self.cur_depth = gray, depth_arr
 
             return self.prev_config,False
