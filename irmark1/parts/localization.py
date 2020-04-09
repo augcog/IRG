@@ -155,7 +155,7 @@ class Localization(object):
             self.prev_gray, self.prev_depth = gray, depth_arr
             return self.prev_config, True
 
-        elif self.prev_gray is not None: # KEYFRAME MATCHING
+        elif self.prev_gray is not None and img_arr is not None and depth_arr is not None: # KEYFRAME MATCHING
             if self.prev_config is None:
                 return None, False
 
