@@ -2,37 +2,62 @@ import cv2
 import numpy as np
 import os
 from sklearn.linear_model import LinearRegression, Ridge
+import scipy.optimize as optimization
+import time
 
 NUM_IMAGES = 1353
-START_NUM = 1
+START_NUM = 500
 folder_prefix = os.getcwd() + '/tub_2_20-04-08/'
 depth_suffix = '_cam-depth_array_.png'
 image_suffix = '_cam-image_array_.jpg'
 
+def exponential_func(x, a, b, c, d):
+    return a*np.exp(b*x) + c*np.exp(d*x)
 
 def ground_plane_subtraction(depth_array, image_array):
     # TODO: GROUND PLANE DETECTION AND SUBTRACTION (Returns image_array for now, will be changed later)
-    X = []
-    y = []
-    calib = 0.6
-    linreg = Ridge()
+    
+    tol =0.04
+    a_s = []
+    b_s = []
+    c_s = []
+    d_s = []
+    train_orig_time = time.time()
+    error_count=0
+    for j in range(len(depth_array[0])):
+        x = []
+        y = []
+        for i in range(len(depth_array)):
+            if (depth_array[i][j] != 0):
+                x.append(len(depth_array)-i)
+                y.append(depth_array[i][j])
+        if len(x) > 5:
+            try:
+                a,b,c,d = optimization.curve_fit(exponential_func, x, y, p0 = [1,0,1,0], maxfev=200)[0]
+                a_s.append(a)
+                b_s.append(b)
+                c_s.append(c)
+                d_s.append(d)
+            except RuntimeError:
+                error_count += 1
+                continue
+    a = np.median(a_s)
+    b = np.median(b_s)
+    c = np.median(c_s)
+    d = np.median(d_s)
+    orig_time = time.time()
+    print("Fit Errors:", error_count)
+    print("train time:", orig_time-train_orig_time)
     for i in range(len(depth_array)):
         for j in range(len(depth_array[0])):
             if (depth_array[i][j] != 0):
-                X.append([1, i])
-                y.append(np.log(depth_array[i][j]))
-    linreg.fit(X=X,y=y)
-    results = linreg.predict(X)
-    counter = 0
-    for i in range(len(depth_array)):
-        for j in range(len(depth_array[0])):
-            if (depth_array[i][j] != 0):
-                if abs(results[counter] - np.log(depth_array[i][j])) < calib:
+                if abs(exponential_func(len(depth_array)-i, a, b, c, d) - (depth_array[i][j])) < tol*(len(depth_array)-i):
                     image_array[i][j] = 0
-                counter += 1
-            else:
-                #image_array[i][j] = 0
-                pass
+                else:
+                    #print(exponential_func(len(depth_array)-i, a, b, c, d) - depth_array[i][j])
+                    pass
+    inference_time = time.time() - orig_time
+    print("inference time:", inference_time)
     return image_array
 
 if __name__ == "__main__":
