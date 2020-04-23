@@ -54,11 +54,12 @@ def ground_plane_subtraction(depth_array, image_array):
                 if abs(exponential_func(len(depth_array)-i, a, b, c, d) - (depth_array[i][j])) < tol*(len(depth_array)-i):
                     image_array[i][j] = 0
                 else:
-                    #print(exponential_func(len(depth_array)-i, a, b, c, d) - depth_array[i][j])
                     pass
     inference_time = time.time() - orig_time
     print("inference time:", inference_time)
     return image_array
+
+SCALE_FACTOR = 2
 
 if __name__ == "__main__":
     for i in range(NUM_IMAGES):
@@ -66,10 +67,10 @@ if __name__ == "__main__":
         image_name = folder_prefix + str(START_NUM+i) + image_suffix
         depth_array = cv2.imread(depth_name, cv2.IMREAD_GRAYSCALE)
         image_array = cv2.imread(image_name, cv2.IMREAD_GRAYSCALE) #Currently a grayscale image :/
+        depth_array = cv2.resize(depth_array, (depth_array.shape[1]//SCALE_FACTOR, depth_array.shape[0]//SCALE_FACTOR))
+        image_array = cv2.resize(image_array, (image_array.shape[1]//SCALE_FACTOR, image_array.shape[0]//SCALE_FACTOR))
         cv2.imshow("Depth", depth_array)
-        #print(depth_array.shape)
         cv2.imshow("Image", image_array)
-        #print(image_array.shape)
         subtracted_array = ground_plane_subtraction(depth_array, image_array)
         cv2.imshow("Subtracted", subtracted_array)
         cv2.waitKey(15)
